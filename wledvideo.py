@@ -122,7 +122,7 @@ class WLEDVideo:
 
             message = (
                 bytes([self.MESSAGE_TYPE_DNRGB, 2, start_h, start_l])
-                + frame[(start * 3): (start + self.MAX_PIXELS_PER_FRAME) * 3]
+                + frame[(start * 3) : (start + self.MAX_PIXELS_PER_FRAME) * 3]
                 .astype("int8")
                 .tobytes()
             )
@@ -144,9 +144,11 @@ class WLEDVideo:
 
 
 if __name__ == "__main__":
+    import sys
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--camera", action="store_true")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=21324)
     parser.add_argument("--width", type=int, default=0)
@@ -157,13 +159,26 @@ if __name__ == "__main__":
         choices=["stretch", "fill", "fit", "crop"],
         default="fill",
     )
-    parser.add_argument("video")
+    parser.add_argument(
+        "video",
+        nargs=1 if "--camera" not in sys.argv else "?",
+        type=str if "--camera" not in sys.argv else int,
+        help="if --camera is set, 'video' shall be the index of the camera source (defaults to 0)"
+    )
     parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
+    if args.video:
+        if isinstance(args.video, list):
+            video = args.video[0]
+        else:
+            video = args.video
+    else:
+        if args.camera:
+            video = 0
 
     player = WLEDVideo(
-        args.video,
+        video,
         args.host,
         args.port,
         args.width,
