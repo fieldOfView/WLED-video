@@ -7,116 +7,140 @@ import math
 import requests
 import json
 
-MESSAGE_TYPE_DNRGB = 4
-MAX_PIXELS_PER_FRAME = 480
 
+class WLEDVideo:
+    MESSAGE_TYPE_DNRGB = 4
+    MAX_PIXELS_PER_FRAME = 480
+    RESAMPLING = cv2.INTER_AREA
 
-def gammaCorrect(src, gamma):
-    invGamma = 1 / gamma
+    def __init__(
+        self,
+        video: str,
+        host: str,
+        port: int,
+        width: int,
+        height: int,
+        scale: str,
+        gamma: float,
+        debug: bool,
+    ) -> None:
+        self._wled_info = {}  # type: Dict[str, Any]
 
-    table = [((i / 255) ** invGamma) * 255 for i in range(256)]
-    table = np.array(table, np.uint8)
+        self.video = video
 
-    return cv2.LUT(src, table)
+        self.ip = socket.gethostbyname(host)
+        self.port = port
 
+        self.width = width
+        self.height = height
+        if self.width == 0 or self.height == 0:
+            print("Getting dimensions from wled...")
+            self.width, self.height = self._getDimensions()
+            print("width: %d, height: %d" % (self.width, self.height))
+        self._display_ratio = self.width / self.height
 
-def getDimensions(host):
-    response = requests.get("http://" + host + "/json/info", timeout=5)
-    info = json.loads(response.text)
+        self.scale = scale
 
-    width = info["leds"]["matrix"]["w"]
-    height = info["leds"]["matrix"]["w"]
+        inverseGamma = 1 / gamma
+        self._gamma_table = [((i / 255) ** inverseGamma) * 255 for i in range(256)]
+        self._gamma_table = np.array(self._gamma_table, np.uint8)
 
-    return width, height
+        self.debug = debug
 
+    def stream(self) -> None:
+        cap = cv2.VideoCapture(self.video)
+        if not cap.isOpened():
+            return
 
-def sendFrame(sock, destination, frame):
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame = frame.flatten()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-    for start in range(0, int(frame.size / 3), MAX_PIXELS_PER_FRAME):
-        start_h = start >> 8
-        start_l = start & 0xFF
+                frame = self._scaleFrame(frame)
+                frame = self._gammaCorrectFrame(frame)
+                self._sendFrame(sock, frame)
 
-        message = (
-            bytes([MESSAGE_TYPE_DNRGB, 2, start_h, start_l])
-            + frame[(start * 3) : (start + MAX_PIXELS_PER_FRAME) * 3]
-            .astype("int8")
-            .tobytes()
-        )
+                if self.debug:
+                    cv2.imshow("Frame", frame)
 
-        sock.sendto(message, destination)
+                cv2.waitKey(25)
 
+                # Press Q on keyboard to exit
+                # if cv2.waitKey(25) & 0xFF == ord('q'):
+                #    break
 
-def showVideo(args):
-    ip = socket.gethostbyname(args.host)
+    def _scaleFrame(self, frame: np.ndarray) -> np.ndarray:
+        frame_height, frame_width = frame.shape[:2]
 
-    width = args.width
-    height = args.height
-    if width == 0 or height == 0:
-        print("Getting dimensions from wled...")
-        width, height = getDimensions(ip)
-        print("width: %d, height: %d" % (width, height))
+        if self.scale == "stretch":
+            frame = cv2.resize(
+                frame, (self.width, self.height), interpolation=self.RESAMPLING
+            )
+        else:
+            if self.scale in ["fill", "fit"]:
+                image_ratio = frame_width / frame_height
 
-    video = args.video
-
-    cap = cv2.VideoCapture(video)
-    if not cap.isOpened():
-        return
-
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        screen_ratio = width / height
-        resampling = cv2.INTER_AREA
-
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            frame_height, frame_width = frame.shape[:2]
-
-            if args.scale == "stretch":
-                frame = cv2.resize(frame, (width, height), interpolation=resampling)
-            else:
-                if args.scale in ["fill", "fit"]:
-                    image_ratio = frame_width / frame_height
-
-                    if (args.scale == "fill" and image_ratio > screen_ratio) or (
-                        args.scale == "fit" and image_ratio < screen_ratio
-                    ):
-                        size = (math.floor(height * image_ratio), height)
-                    else:
-                        size = (width, math.floor(width / image_ratio))
-                    frame = cv2.resize(frame, size, interpolation=resampling)
-
-                frame_height, frame_width = frame.shape[:2]
-                left = math.floor((frame_width - width) / 2)
-                top = math.floor((frame_height - height) / 2)
-                frame = frame[top : (top + height), left : (left + width)]
-                # NB: frame could now be smaller than width, height!
-                # see extension below
+                if (self.scale == "fill" and image_ratio > self._display_ratio) or (
+                    self.scale == "fit" and image_ratio < self._display_ratio
+                ):
+                    size = (math.floor(self.height * image_ratio), self.height)
+                else:
+                    size = (self.width, math.floor(self.width / image_ratio))
+                frame = cv2.resize(frame, size, interpolation=self.RESAMPLING)
 
             frame_height, frame_width = frame.shape[:2]
-            if frame_width < width or frame_height < height:
-                left = math.floor((width - frame_width) / 2)
-                right = width - frame_width - left
-                top = math.floor((height - frame_height) / 2)
-                bottom = height - frame_height - top
-                frame = cv2.copyMakeBorder(
-                    frame, top, bottom, left, right, cv2.BORDER_CONSTANT, 0
-                )
+            left = math.floor((frame_width - self.width) / 2)
+            top = math.floor((frame_height - self.height) / 2)
+            frame = frame[top : (top + self.height), left : (left + self.width)]
+            # NB: frame could now be smaller than self.width, self.height!
+            # see extension below
 
-            frame = gammaCorrect(frame, args.gamma)
-            sendFrame(sock, (ip, args.port), frame)
+        frame_height, frame_width = frame.shape[:2]
+        if frame_width < self.width or frame_height < self.height:
+            left = math.floor((self.width - frame_width) / 2)
+            right = self.width - frame_width - left
+            top = math.floor((self.height - frame_height) / 2)
+            bottom = self.height - frame_height - top
+            frame = cv2.copyMakeBorder(
+                frame, top, bottom, left, right, cv2.BORDER_CONSTANT, 0
+            )
 
-            if args.debug:
-                cv2.imshow("Frame", frame)
+        return frame
 
-            cv2.waitKey(25)
+    def _gammaCorrectFrame(self, frame: np.ndarray) -> np.ndarray:
+        return cv2.LUT(frame, self._gamma_table)
 
-            # Press Q on keyboard to exit
-            # if cv2.waitKey(25) & 0xFF == ord('q'):
-            #    break
+    def _sendFrame(self, sock: socket.socket, frame: np.ndarray) -> None:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame = frame.flatten()
+
+        for start in range(0, int(frame.size / 3), self.MAX_PIXELS_PER_FRAME):
+            start_h = start >> 8
+            start_l = start & 0xFF
+
+            message = (
+                bytes([self.MESSAGE_TYPE_DNRGB, 2, start_h, start_l])
+                + frame[(start * 3): (start + self.MAX_PIXELS_PER_FRAME) * 3]
+                .astype("int8")
+                .tobytes()
+            )
+
+            sock.sendto(message, (self.ip, self.port))
+
+    def _loadInfo(self) -> None:
+        response = requests.get("http://" + self.ip + "/json/info", timeout=5)
+        self._wled_info = json.loads(response.text)
+
+    def _getDimensions(self) -> (int, int):
+        if not self._wled_info:
+            self._loadInfo()
+
+        width = self._wled_info["leds"]["matrix"]["w"]
+        height = self._wled_info["leds"]["matrix"]["w"]
+
+        return width, height
 
 
 if __name__ == "__main__":
@@ -138,4 +162,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    showVideo(args)
+    player = WLEDVideo(
+        args.video,
+        args.host,
+        args.port,
+        args.width,
+        args.height,
+        args.scale,
+        args.gamma,
+        args.debug,
+    )
+    player.stream()
