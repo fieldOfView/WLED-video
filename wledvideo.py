@@ -7,25 +7,28 @@ import math
 import requests
 import json
 
+from typing import Union
+
 
 class WLEDVideo:
     MESSAGE_TYPE_DNRGB = 4
     MAX_PIXELS_PER_FRAME = 480
-    RESAMPLING = cv2.INTER_AREA
+    DEBUG_SCALE = 16
 
     def __init__(
         self,
-        video: str,
+        video: Union[str, int],
         host: str,
         port: int,
         width: int,
         height: int,
         scale: str,
+        interpolation: str,
         gamma: float,
+        loop: bool,
         debug: bool,
     ) -> None:
         self._wled_info = {}  # type: Dict[str, Any]
-
         self.video = video
 
         self.ip = socket.gethostbyname(host)
@@ -45,6 +48,11 @@ class WLEDVideo:
         self._gamma_table = [((i / 255) ** inverseGamma) * 255 for i in range(256)]
         self._gamma_table = np.array(self._gamma_table, np.uint8)
 
+        self._interpolation = (
+            cv2.INTER_NEAREST if interpolation == "hard" else cv2.INTER_AREA
+        )
+
+        self.loop = loop
         self.debug = debug
 
     def stream(self) -> None:
@@ -53,30 +61,47 @@ class WLEDVideo:
             return
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
+            play_video = True
+            while play_video:
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
 
-                frame = self._scaleFrame(frame)
-                frame = self._gammaCorrectFrame(frame)
-                self._sendFrame(sock, frame)
+                    frame = self._scaleFrame(frame)
+                    frame = self._gammaCorrectFrame(frame)
+                    self._sendFrame(sock, frame)
 
-                if self.debug:
-                    cv2.imshow("Frame", frame)
+                    if self.debug:
+                        cv2.imshow(
+                            "Frame",
+                            cv2.resize(
+                                frame,
+                                (
+                                    self.width * self.DEBUG_SCALE,
+                                    self.height * self.DEBUG_SCALE,
+                                ),
+                                interpolation=cv2.INTER_NEAREST,
+                            ),
+                        )
 
-                cv2.waitKey(25)
+                    cv2.waitKey(25)
 
-                # Press Q on keyboard to exit
-                # if cv2.waitKey(25) & 0xFF == ord('q'):
-                #    break
+                    # Press Q on keyboard to exit
+                    # if cv2.waitKey(25) & 0xFF == ord('q'):
+                    #    break
+
+                if self.loop:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                else:
+                    play_video = False
 
     def _scaleFrame(self, frame: np.ndarray) -> np.ndarray:
         frame_height, frame_width = frame.shape[:2]
 
         if self.scale == "stretch":
             frame = cv2.resize(
-                frame, (self.width, self.height), interpolation=self.RESAMPLING
+                frame, (self.width, self.height), interpolation=self._interpolation
             )
         else:
             if self.scale in ["fill", "fit"]:
@@ -88,7 +113,7 @@ class WLEDVideo:
                     size = (math.floor(self.height * image_ratio), self.height)
                 else:
                     size = (self.width, math.floor(self.width / image_ratio))
-                frame = cv2.resize(frame, size, interpolation=self.RESAMPLING)
+                frame = cv2.resize(frame, size, interpolation=self._interpolation)
 
             frame_height, frame_width = frame.shape[:2]
             left = math.floor((frame_width - self.width) / 2)
@@ -153,18 +178,24 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=21324)
     parser.add_argument("--width", type=int, default=0)
     parser.add_argument("--height", type=int, default=0)
-    parser.add_argument("--gamma", type=float, default=0.5)
     parser.add_argument(
         "--scale",
         choices=["stretch", "fill", "fit", "crop"],
         default="fill",
     )
     parser.add_argument(
+        "--interpolation",
+        choices=["hard", "smooth"],
+        default="smooth",
+    )
+    parser.add_argument("--gamma", type=float, default=0.5)
+    parser.add_argument(
         "video",
         nargs=1 if "--camera" not in sys.argv else "?",
         type=str if "--camera" not in sys.argv else int,
-        help="if --camera is set, 'video' shall be the index of the camera source (defaults to 0)"
+        help="The video file to stream (required). If --camera is set, 'video' shall be the index of the camera source (defaulting to 0)",
     )
+    parser.add_argument("--loop", action="store_true")
     parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
@@ -178,13 +209,15 @@ if __name__ == "__main__":
             video = 0
 
     player = WLEDVideo(
-        video,
-        args.host,
-        args.port,
-        args.width,
-        args.height,
-        args.scale,
-        args.gamma,
-        args.debug,
+        video=video,
+        host=args.host,
+        port=args.port,
+        width=args.width,
+        height=args.height,
+        scale=args.scale,
+        interpolation=args.interpolation,
+        gamma=args.gamma,
+        loop=args.loop,
+        debug=args.debug,
     )
     player.stream()
