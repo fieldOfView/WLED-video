@@ -7,7 +7,7 @@ import math
 import requests
 import json
 
-from typing import Union
+from typing import Union, List
 
 
 class WLEDVideo:
@@ -22,6 +22,7 @@ class WLEDVideo:
         port: int,
         width: int,
         height: int,
+        crop: List[int],
         scale: str,
         interpolation: str,
         gamma: float,
@@ -42,6 +43,7 @@ class WLEDVideo:
             print("width: %d, height: %d" % (self.width, self.height))
         self._display_ratio = self.width / self.height
 
+        self.crop = crop
         self.scale = scale
 
         inverseGamma = 1 / gamma
@@ -68,6 +70,7 @@ class WLEDVideo:
                     if not ret:
                         break
 
+                    frame = self._cropFrame(frame)
                     frame = self._scaleFrame(frame)
                     frame = self._gammaCorrectFrame(frame)
                     self._sendFrame(sock, frame)
@@ -95,6 +98,16 @@ class WLEDVideo:
                     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 else:
                     play_video = False
+
+    def _cropFrame(self, frame: np.ndarray) -> np.ndarray:
+        if self.crop:
+            frame_height, frame_width = frame.shape[:2]
+            frame = frame[
+                self.crop[1] : frame_height - self.crop[3],
+                self.crop[0] : frame_width - self.crop[2],
+            ]
+
+        return frame
 
     def _scaleFrame(self, frame: np.ndarray) -> np.ndarray:
         frame_height, frame_width = frame.shape[:2]
@@ -172,6 +185,19 @@ if __name__ == "__main__":
     import sys
     import argparse
 
+    def cropArgument(argument: str) -> List[int]:
+        crop_amounts = [int(a) for a in argument.split(",")]
+        if len(crop_amounts) == 1:
+            crop_amounts = crop_amounts * 4
+        elif len(crop_amounts) == 2:
+            crop_amounts = crop_amounts * 2
+        elif len(crop_amounts) == 4:
+            pass
+        else:
+            raise ValueError
+
+        return crop_amounts
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--camera", action="store_true")
     parser.add_argument("--host", default="127.0.0.1")
@@ -187,6 +213,12 @@ if __name__ == "__main__":
         "--interpolation",
         choices=["hard", "smooth"],
         default="smooth",
+    )
+    parser.add_argument(
+        "--crop",
+        type=cropArgument,
+        default=[],
+        help="Pixels to top from the image. Can be either 1, 2 or 4 integer values to crop from respectively cropping all sides by the same amount, different amount horizontally and vertically, or all sides individually",
     )
     parser.add_argument("--gamma", type=float, default=0.5)
     parser.add_argument(
@@ -214,6 +246,7 @@ if __name__ == "__main__":
         port=args.port,
         width=args.width,
         height=args.height,
+        crop=args.crop,
         scale=args.scale,
         interpolation=args.interpolation,
         gamma=args.gamma,
