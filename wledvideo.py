@@ -3,14 +3,15 @@
 import loopablecamgear
 import cv2
 import numpy as np
+
 import socket
-import math
 import requests
 import json
+import math
+import logging
+from vidgear.gears.helper import logger_handler
 
 from typing import Union, List
-
-LoopableCamGear = loopablecamgear.LoopableCamGear
 
 
 class VideoCapture():
@@ -21,8 +22,13 @@ class VideoCapture():
             stream_mode = True
             options = {"STREAM_RESOLUTION": "360p"}
 
+        self.logger = logging.getLogger("VideoCapture")
+        self.logger.propagate = False
+        self.logger.addHandler(logger_handler())
+        self.logger.setLevel(logging.DEBUG)
+
         try:
-            self.video = LoopableCamGear(
+            self.video = loopablecamgear.LoopableCamGear(
                 source=source,
                 stream_mode=stream_mode,
                 logging=True,
@@ -30,14 +36,15 @@ class VideoCapture():
                 **options
             ).start()
         except ValueError:
-            self.video = LoopableCamGear(
+            self.logger.info("Source is not an URL that yt_dlp can handle.")
+            self.video = loopablecamgear.LoopableCamGear(
                 source=source,
                 logging=True,
                 loop=loop,
             ).start()
 
 
-class WLEDVideo:
+class WLEDStreamer:
     MESSAGE_TYPE_DNRGB = 4
     MAX_PIXELS_PER_FRAME = 480
 
@@ -52,6 +59,11 @@ class WLEDVideo:
         interpolation: str,
         gamma: float,
     ) -> None:
+        self.logger = logging.getLogger("WLEDStreamer")
+        self.logger.propagate = False
+        self.logger.addHandler(logger_handler())
+        self.logger.setLevel(logging.DEBUG)
+
         self._wled_info = {}  # type: Dict[str, Any]
 
         self.ip = socket.gethostbyname(host)
@@ -61,9 +73,12 @@ class WLEDVideo:
         self.width = width
         self.height = height
         if self.width == 0 or self.height == 0:
-            print("Getting dimensions from wled...")
+            self.logger.info("Getting dimensions from wled...")
             self.width, self.height = self._getDimensions()
-            print("width: %d, height: %d" % (self.width, self.height))
+            self.logger.debug("width: %d, height: %d" % (self.width, self.height))
+            if self.width == 0 or self.height == 0:
+                self.logger.error("Could not get width and/or height from wled instance.")
+                sys.exit()
         self._display_ratio = self.width / self.height
 
         self.crop = crop
@@ -154,10 +169,18 @@ class WLEDVideo:
 
     def _getDimensions(self) -> (int, int):
         if not self._wled_info:
-            self._loadInfo()
+            try:
+                self._loadInfo()
+            except Exception:
+                self.logger.warning("Could not get information from WLED.")
+                return 0, 0
 
-        width = self._wled_info["leds"]["matrix"]["w"]
-        height = self._wled_info["leds"]["matrix"]["w"]
+        try:
+            width = self._wled_info["leds"]["matrix"]["w"]
+            height = self._wled_info["leds"]["matrix"]["w"]
+        except Exception:
+            self.logger.warning("Dimensions not found in info from WLED.")
+            return 0, 0
 
         return width, height
 
@@ -221,7 +244,7 @@ if __name__ == "__main__":
         if args.camera:
             source = 0
 
-    wled = WLEDVideo(
+    wled = WLEDStreamer(
         host=args.host,
         port=args.port,
         width=args.width,
