@@ -1,25 +1,20 @@
 #!/usr/bin/python3
 
-from vidgear.gears import CamGear
+import loopablecamgear
 import cv2
 import numpy as np
 import socket
 import math
 import requests
 import json
-import threading
-import queue
 
 from typing import Union, List
 
+LoopableCamGear = loopablecamgear.LoopableCamGear
 
-class VideoCapture(threading.Thread):
-    def __init__(self, source: Union[str, int], loop: bool) -> None:
-        threading.Thread.__init__(self)
 
-        self.stop = threading.Event()
-        self.frameQueue = queue.Queue()
-
+class VideoCapture():
+    def __init__(self, source: Union[str, int], loop: bool = False) -> None:
         stream_mode = False
         options = {}
         if type(source) != int and "://" in source:
@@ -27,37 +22,19 @@ class VideoCapture(threading.Thread):
             options = {"STREAM_RESOLUTION": "360p"}
 
         try:
-            self.video = CamGear(
-                source=source, stream_mode=stream_mode, logging=True, **options
+            self.video = LoopableCamGear(
+                source=source,
+                stream_mode=stream_mode,
+                logging=True,
+                loop=loop,
+                **options
             ).start()
         except ValueError:
-            self.video = CamGear(source=source, logging=True).start()
-
-        fps = self.video.framerate
-        self.period = 1.0 / fps
-
-        self.loop = loop
-
-    def run(self):
-        while not self.stop.wait(self.period):
-            frame = self.video.read()
-            if frame is None:
-                if self.loop:
-                    self.video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                else:
-                    self.stop.set()
-            if not self.frameQueue.empty():
-                # discard previous (unprocessed) frame
-                try:
-                    self.frameQueue.get_nowait()
-                except queue.Empty:
-                    pass
-            self.frameQueue.put(frame)
-        self.video.stop()
-
-    def read(self):
-        # blocks until a new frame is available
-        return self.frameQueue.get()
+            self.video = LoopableCamGear(
+                source=source,
+                logging=True,
+                loop=loop,
+            ).start()
 
 
 class WLEDVideo:
@@ -256,11 +233,12 @@ if __name__ == "__main__":
     )
 
     player = VideoCapture(source=source, loop=args.loop)
-    player.start()
 
     while True:
         try:
-            frame = player.read()
+            frame = player.video.read()
+            if frame is None:
+                break
 
             frame = wled.cropFrame(frame)
             frame = wled.scaleFrame(frame)
@@ -270,12 +248,12 @@ if __name__ == "__main__":
             if args.debug:
                 cv2.imshow("wledvideo", frame)
                 if cv2.waitKey(1) & 255 in [27, ord("q")]:
-                    player.stop.set()
-                    wled.close()
+                    player.video.stop()
                     break
 
         except (KeyboardInterrupt, SystemExit):
-            cv2.destroyAllWindows()
-            player.stop.set()
-            wled.close()
-            sys.exit()
+            player.video.stop()
+            break
+
+    cv2.destroyAllWindows()
+    wled.close()
