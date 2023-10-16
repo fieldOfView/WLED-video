@@ -1,3 +1,5 @@
 opencv-python
 numpy
 requests
+vidgear
+yt-dlp

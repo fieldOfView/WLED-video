@@ -1,23 +1,71 @@
 #!/usr/bin/python3
 
+from vidgear.gears import CamGear
 import cv2
 import numpy as np
 import socket
 import math
 import requests
 import json
+import threading
+import queue
 
 from typing import Union, List
+
+
+class VideoCapture(threading.Thread):
+    def __init__(self, source: Union[str, int], loop: bool) -> None:
+        threading.Thread.__init__(self)
+
+        self.stop = threading.Event()
+        self.frameQueue = queue.Queue()
+
+        stream_mode = False
+        options = {}
+        if type(source) != int and "://" in source:
+            stream_mode = True
+            options = {"STREAM_RESOLUTION": "360p"}
+
+        try:
+            self.video = CamGear(
+                source=source, stream_mode=stream_mode, logging=True, **options
+            ).start()
+        except ValueError:
+            self.video = CamGear(source=source, logging=True).start()
+
+        fps = self.video.framerate
+        self.period = 1.0 / fps
+
+        self.loop = loop
+
+    def run(self):
+        while not self.stop.wait(self.period):
+            frame = self.video.read()
+            if frame is None:
+                if self.loop:
+                    self.video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                else:
+                    self.stop.set()
+            if not self.frameQueue.empty():
+                # discard previous (unprocessed) frame
+                try:
+                    self.frameQueue.get_nowait()
+                except queue.Empty:
+                    pass
+            self.frameQueue.put(frame)
+        self.video.stop()
+
+    def read(self):
+        # blocks until a new frame is available
+        return self.frameQueue.get()
 
 
 class WLEDVideo:
     MESSAGE_TYPE_DNRGB = 4
     MAX_PIXELS_PER_FRAME = 480
-    DEBUG_SCALE = 16
 
     def __init__(
         self,
-        video: Union[str, int],
         host: str,
         port: int,
         width: int,
@@ -26,14 +74,12 @@ class WLEDVideo:
         scale: str,
         interpolation: str,
         gamma: float,
-        loop: bool,
-        debug: bool,
     ) -> None:
         self._wled_info = {}  # type: Dict[str, Any]
-        self.video = video
 
         self.ip = socket.gethostbyname(host)
         self.port = port
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.width = width
         self.height = height
@@ -54,52 +100,10 @@ class WLEDVideo:
             cv2.INTER_NEAREST if interpolation == "hard" else cv2.INTER_AREA
         )
 
-        self.loop = loop
-        self.debug = debug
+    def close(self):
+        self.socket.close()
 
-    def stream(self) -> None:
-        cap = cv2.VideoCapture(self.video)
-        if not cap.isOpened():
-            return
-
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            play_video = True
-            while play_video:
-                while cap.isOpened():
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-
-                    frame = self._cropFrame(frame)
-                    frame = self._scaleFrame(frame)
-                    frame = self._gammaCorrectFrame(frame)
-                    self._sendFrame(sock, frame)
-
-                    if self.debug:
-                        cv2.imshow(
-                            "Frame",
-                            cv2.resize(
-                                frame,
-                                (
-                                    self.width * self.DEBUG_SCALE,
-                                    self.height * self.DEBUG_SCALE,
-                                ),
-                                interpolation=cv2.INTER_NEAREST,
-                            ),
-                        )
-
-                    cv2.waitKey(25)
-
-                    # Press Q on keyboard to exit
-                    # if cv2.waitKey(25) & 0xFF == ord('q'):
-                    #    break
-
-                if self.loop:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                else:
-                    play_video = False
-
-    def _cropFrame(self, frame: np.ndarray) -> np.ndarray:
+    def cropFrame(self, frame: np.ndarray) -> np.ndarray:
         if self.crop:
             frame_height, frame_width = frame.shape[:2]
             frame = frame[
@@ -109,7 +113,7 @@ class WLEDVideo:
 
         return frame
 
-    def _scaleFrame(self, frame: np.ndarray) -> np.ndarray:
+    def scaleFrame(self, frame: np.ndarray) -> np.ndarray:
         frame_height, frame_width = frame.shape[:2]
 
         if self.scale == "stretch":
@@ -147,10 +151,10 @@ class WLEDVideo:
 
         return frame
 
-    def _gammaCorrectFrame(self, frame: np.ndarray) -> np.ndarray:
+    def gammaCorrectFrame(self, frame: np.ndarray) -> np.ndarray:
         return cv2.LUT(frame, self._gamma_table)
 
-    def _sendFrame(self, sock: socket.socket, frame: np.ndarray) -> None:
+    def sendFrame(self, frame: np.ndarray) -> None:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = frame.flatten()
 
@@ -165,7 +169,7 @@ class WLEDVideo:
                 .tobytes()
             )
 
-            sock.sendto(message, (self.ip, self.port))
+            self.socket.sendto(message, (self.ip, self.port))
 
     def _loadInfo(self) -> None:
         response = requests.get("http://" + self.ip + "/json/info", timeout=5)
@@ -222,26 +226,25 @@ if __name__ == "__main__":
     )
     parser.add_argument("--gamma", type=float, default=0.5)
     parser.add_argument(
-        "video",
+        "source",
         nargs=1 if "--camera" not in sys.argv else "?",
         type=str if "--camera" not in sys.argv else int,
-        help="The video file to stream (required). If --camera is set, 'video' shall be the index of the camera source (defaulting to 0)",
+        help="The video file to stream (required). If --camera is set, 'source' shall be the index of the camera source (defaulting to 0)",
     )
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
-    if args.video:
-        if isinstance(args.video, list):
-            video = args.video[0]
+    if args.source:
+        if isinstance(args.source, list):
+            source = args.source[0]
         else:
-            video = args.video
+            source = args.source
     else:
         if args.camera:
-            video = 0
+            source = 0
 
-    player = WLEDVideo(
-        video=video,
+    wled = WLEDVideo(
         host=args.host,
         port=args.port,
         width=args.width,
@@ -250,7 +253,29 @@ if __name__ == "__main__":
         scale=args.scale,
         interpolation=args.interpolation,
         gamma=args.gamma,
-        loop=args.loop,
-        debug=args.debug,
     )
-    player.stream()
+
+    player = VideoCapture(source=source, loop=args.loop)
+    player.start()
+
+    while True:
+        try:
+            frame = player.read()
+
+            frame = wled.cropFrame(frame)
+            frame = wled.scaleFrame(frame)
+            frame = wled.gammaCorrectFrame(frame)
+            wled.sendFrame(frame)
+
+            if args.debug:
+                cv2.imshow("wledvideo", frame)
+                if cv2.waitKey(1) & 255 in [27, ord("q")]:
+                    player.stop.set()
+                    wled.close()
+                    break
+
+        except (KeyboardInterrupt, SystemExit):
+            cv2.destroyAllWindows()
+            player.stop.set()
+            wled.close()
+            sys.exit()
