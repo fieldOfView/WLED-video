@@ -25,3 +25,13 @@ jobs:
           requirements: 'requirements.txt'
           upload_exe_with_name: 'WLED-video for Mac OS (universal)'
 
+  pyinstaller-build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Executable
+        uses: sayyid5416/pyinstaller@v1
+        with:
+          spec: 'wledvideo.spec'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'WLED-video for Linux (x64)'
+
