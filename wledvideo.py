@@ -177,7 +177,7 @@ class WLEDStreamer:
 
         try:
             width = self._wled_info["leds"]["matrix"]["w"]
-            height = self._wled_info["leds"]["matrix"]["w"]
+            height = self._wled_info["leds"]["matrix"]["h"]
         except Exception:
             self.logger.warning("Dimensions not found in info from WLED.")
             return 0, 0
