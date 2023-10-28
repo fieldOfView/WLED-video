@@ -1,5 +1,6 @@
 opencv-python
 numpy
 requests
+toml
 vidgear
 yt-dlp
