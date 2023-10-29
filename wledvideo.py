@@ -7,9 +7,10 @@ import logging
 import cv2
 
 import loopablecamgear
-import wledstreamer
+import udpstreamer
+import serialstreamer
 
-from vidgear.gears.helper import logger_handler
+from utils import logger_handler
 
 from typing import Union, List
 
@@ -55,6 +56,8 @@ if __name__ == "__main__":
     STREAMER_CONFIG_DEFAULTS = {
         "host": "127.0.0.1",
         "port": 21234,
+        "serial": "",
+        "baudrate": 115200,
         "width": 0,
         "height": 0,
         "crop": [],
@@ -83,13 +86,13 @@ if __name__ == "__main__":
         config = {}
 
     try:
-        stream_config = config["server"]
+        stream_config = config["wled"]
     except KeyError:
         stream_config = {}
     if isinstance(stream_config, List):
         stream_config = stream_config[0]
-    if "server" not in config:
-        config["server"] = [stream_config]
+    if "wled" not in config:
+        config["wled"] = [stream_config]
 
     #
     # parse the rest of the arguments
@@ -132,6 +135,15 @@ if __name__ == "__main__":
         "--port",
         type=int,
         default=getStreamerDefault("port"),
+    )
+    parser.add_argument(
+        "--serial",
+        default=getStreamerDefault("serial")
+    )
+    parser.add_argument(
+        "--baudrate",
+        type=int,
+        default=getStreamerDefault("baudrate"),
     )
     parser.add_argument(
         "--width",
@@ -208,9 +220,7 @@ if __name__ == "__main__":
         if args.camera:
             source = 0
 
-    config["server"][0] = {
-        "host": args.host,
-        "port": args.port,
+    config["wled"][0] = {
         "width": args.width,
         "height": args.height,
         "crop": args.crop,
@@ -219,10 +229,25 @@ if __name__ == "__main__":
         "gamma": args.gamma,
     }
 
+    if args.serial == "" and "serial" not in config["wled"][0]:
+        config["wled"][0].update({
+            "host": args.host,
+            "port": args.port,
+        })
+    else:
+        config["wled"][0].update({
+            "serialport": args.serial,
+            "baudrate": args.baudrate,
+        })
+
     wled_streamers = []
 
-    for stream in config["server"]:
-        wled_streamers.append(wledstreamer.WLEDStreamer(**stream))
+    for stream_config in config["wled"]:
+        if "serialport" in stream_config:
+            streamer = serialstreamer.SerialWLEDStreamer(**stream_config)
+        else:
+            streamer = udpstreamer.UDPWLEDStreamer(**stream_config)
+        wled_streamers.append(streamer)
 
     player = VideoCapture(source=source, loop=args.loop)
 

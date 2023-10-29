@@ -1,6 +1,8 @@
-opencv-python
-numpy
 requests
 toml
+colorlog
+pyserial
+opencv-python
+numpy
 vidgear
 yt-dlp
