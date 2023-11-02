@@ -55,7 +55,7 @@ if __name__ == "__main__":
     }
     STREAMER_CONFIG_DEFAULTS = {
         "host": "127.0.0.1",
-        "port": 21234,
+        "port": 21324,
         "serial": "",
         "baudrate": 115200,
         "width": 0,

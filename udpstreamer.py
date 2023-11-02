@@ -25,14 +25,14 @@ class UDPWLEDStreamer(WLEDStreamer):
         interpolation: str = "smooth",
         gamma: float = 0.5,
     ) -> None:
+        self._ip = socket.gethostbyname(host)
+        self._port = port
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
         WLEDStreamer.__init__(self, width, height, crop, scale, interpolation, gamma)
 
-        self.ip = socket.gethostbyname(host)
-        self.port = port
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
     def close(self):
-        self.socket.close()
+        self._socket.close()
 
     def sendFrame(self, frame: np.ndarray) -> None:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -49,8 +49,8 @@ class UDPWLEDStreamer(WLEDStreamer):
                 .tobytes()
             )
 
-            self.socket.sendto(message, (self.ip, self.port))
+            self._socket.sendto(message, (self._ip, self._port))
 
     def _loadInfo(self) -> None:
-        response = requests.get("http://" + self.ip + "/json/info", timeout=5)
+        response = requests.get("http://" + self._ip + "/json/info", timeout=5)
         self._wled_info = json.loads(response.text)
