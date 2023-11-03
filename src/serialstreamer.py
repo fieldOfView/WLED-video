@@ -6,7 +6,7 @@ import json
 
 from typing import List
 
-from wledstreamer import WLEDStreamer
+from .wledstreamer import WLEDStreamer
 
 
 class SerialWLEDStreamer(WLEDStreamer):

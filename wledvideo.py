@@ -6,11 +6,11 @@ import toml
 import logging
 import cv2
 
-import loopablecamgear
-import udpstreamer
-import serialstreamer
+import src.loopablecamgear as loopablecamgear
+import src.udpstreamer as udpstreamer
+import src.serialstreamer as serialstreamer
 
-from utils import logger_handler
+from src.utils import logger_handler
 
 from typing import Union, List
 

@@ -7,7 +7,7 @@ import sys
 
 from typing import List
 
-from utils import logger_handler
+from .utils import logger_handler
 
 
 class WLEDStreamer:
