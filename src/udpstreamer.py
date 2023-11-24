@@ -17,7 +17,7 @@ class UDPWLEDStreamer(WLEDStreamer):
     def __init__(
         self,
         host: str = "127.0.0.1",
-        port: int = 21234,
+        port: int = 21324,
         width: int = 0,
         height: int = 0,
         crop: List[int] = [],
