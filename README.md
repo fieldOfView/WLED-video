@@ -7,6 +7,24 @@ WLED-video uses the [WARLS protocol over UDP](https://kno.wled.ge/interfaces/udp
 
 Sound is currently not handled.
 
+## Installation
+
+Executables are available for Windows, MacOS and Linux on the [releases](https://github.com/fieldOfView/WLED-video/releases) page (x64 only for all three, at this time). These executables are built on github. After downloading and unpacking the executable for Linux or MacOS, you may have to set the "executable" bit on the `wledvideo` file using `chmod +x wledvideo`.
+
+You can also run WLED-video from source. You will have to install its dependencies, preferably in a [virtual environment](https://realpython.com/python-virtual-environments-a-primer/).
+
+```
+pip3 install -r requirements.txt
+```
+
+After that, you can run wledvideo like this:
+
+```
+python3 wledvideo.py --help
+```
+
+## Commandline use
+
 The simplest invocation of the WLED-video commandline is as follows:
 
 ```
@@ -22,7 +40,7 @@ wledvideo --host 4.3.2.1 --width 32 --height 16 togetherforever.mp4
 More options are available via `wledvideo --help`:
 
 ```
-usage: wledvideo.py [-h] [--config CONFIG] [--host HOST] [--port PORT] [--serial SERIAL] [--baudrate BAUDRATE] [--width WIDTH] [--height HEIGHT] [--crop CROP] [--scale {stretch,fill,fit,crop}]
+usage: wledvideo [-h] [--config CONFIG] [--host HOST] [--port PORT] [--serial SERIAL] [--baudrate BAUDRATE] [--width WIDTH] [--height HEIGHT] [--crop CROP] [--scale {stretch,fill,fit,crop}]
                     [--interpolation {hard,smooth}] [--gamma GAMMA] [--loop] [--camera] [--debug]
                     source
 
@@ -49,5 +67,37 @@ options:
   --loop
   --camera              use a webcam instead of a video
   --debug               show the output in a window while streaming
+```
 
+## Configuration files
+
+All settings can also be parameters in a TOML configuration file. Parameters specified in the command line override parameters in the configuration file. If it exists, a file named `config.toml` is loaded automatically. 
+
+```
+debug = true
+camera = true
+
+[[wled]]
+host = 4.3.2.1
+```
+
+The `source`, `loop`, `camera` and `debug` options are general options. The other options are specifc for to a `[[wled]]` group. The configuration file can specify multiple WLED instances, to stream different parts of a single video to different WLED instance.
+
+```
+debug = true
+source = 'https://www.youtube.com/watch?v=qWNQUvIk954'
+loop = true
+
+[[wled]]
+host = 192.168.1.18
+width = 32
+height = 16
+crop = [280,0,960,0]
+
+[[wled]]
+serial = 'COM3:'
+baudrate = 250000
+width = 16
+height = 16
+crop = [960,0,280,0]
 ```
