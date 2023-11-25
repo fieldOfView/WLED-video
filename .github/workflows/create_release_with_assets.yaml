@@ -1,0 +1,91 @@
+name: "Create release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  pyinstaller-build-windows:
+    runs-on: windows-latest
+    permissions: write-all
+    steps:
+      - name: Create executable
+        id: create_executable
+        uses: sayyid5416/pyinstaller@v1
+        with:
+          spec: 'wledvideo.spec'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'WLED-video for Windows (x64)'
+
+      - name: Archive executable
+        id: create_archive
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          filename: 'WLED-video_Windows-x64.zip'
+          path: ${{ steps.create_executable.outputs.executable_path }}/wledvideo
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          prerelease: true
+          generateReleaseNotes: true
+          allowUpdates: true
+          artifacts: 'WLED-video_Windows-x64.zip'
+
+  pyinstaller-build-macos:
+    runs-on: macos-latest
+    permissions: write-all
+    steps:
+      - name: Create executable
+        id: create_executable
+        uses: sayyid5416/pyinstaller@v1
+        with:
+          spec: 'wledvideo.spec'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'WLED-video for Mac OS (x64)'
+
+      - name: Archive executable
+        id: create_archive
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          filename: 'WLED-video_MacOS-x64.zip'
+          path: ${{ steps.create_executable.outputs.executable_path }}/wledvideo
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          prerelease: true
+          generateReleaseNotes: false
+          artifacts: 'WLED-video_MacOS-x64.zip'
+
+  pyinstaller-build-linux:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Create executable
+        id: create_executable
+        uses: sayyid5416/pyinstaller@v1
+        with:
+          spec: 'wledvideo.spec'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'WLED-video for Linux (x64)'
+
+      - name: Archive executable
+        id: create_archive
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          filename: 'WLED-video_Linux-x64.zip'
+          path: ${{ steps.create_executable.outputs.executable_path }}/wledvideo
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          prerelease: true
+          generateReleaseNotes: false
+          artifacts: 'WLED-video_Linux-x64.zip'
