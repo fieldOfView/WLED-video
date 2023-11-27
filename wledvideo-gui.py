@@ -7,6 +7,8 @@ import toml
 import argparse
 import sys
 
+import src.constants as constants
+
 
 class App(tk.Tk):
     def __init__(self):
@@ -14,11 +16,78 @@ class App(tk.Tk):
 
         self.title("WLED video")
         self.resizable(False, False)
+        self.createMenu()
 
-        self.create_menu()
-        self.create_widgets()
+        # variables for configuration
 
-    def create_menu(self):
+        config = constants.CONFIG_DEFAULTS
+        self._source_type = tk.StringVar(
+            self,
+            "video" if not config["camera"] else "camera",
+            "source_type",
+        )
+        self._source_type.trace("w", self._updateType)
+
+        self._source = tk.StringVar(self, config["source"], "source")
+        self._loop = tk.BooleanVar(self, config["loop"], "loop")
+        self._camera_index = tk.IntVar(
+            self,
+            config["source"] if config["camera"] else 0,
+            "camera_index",
+        )
+        self._camera_width = tk.IntVar(self, None, "camera_width")
+        self._camera_height = tk.IntVar(self, None, "camera_height")
+
+        # variables for selected streamers
+
+        streamer_config = constants.STREAMER_CONFIG_DEFAULTS
+        self._connection_type = tk.StringVar(
+            self,
+            "udp" if (streamer_config["host"] is not "") else "serial",
+            "connection_type",
+        )
+        self._connection_type.trace("w", self._updateType)
+
+        self._udp_host = tk.StringVar(self, streamer_config["host"], "udp_host")
+        self._udp_port = tk.StringVar(self, streamer_config["port"], "udp_port")
+        self._serial_port = tk.StringVar(self, streamer_config["serial"], "serial_port")
+        self._serial_baudrate = tk.IntVar(
+            self, streamer_config["baudrate"], "serial_baudrate"
+        )
+
+        self._matrix_width = tk.IntVar(self, streamer_config["width"], "size_width")
+        self._matrix_height = tk.IntVar(self, streamer_config["height"], "size_height")
+
+        self._crop_left = tk.IntVar(self, 0, "crop_left")
+        self._crop_top = tk.IntVar(self, 0, "crop_top")
+        self._crop_right = tk.IntVar(self, 0, "crop_right")
+        self._crop_bottom = tk.IntVar(self, 0, "crop_bottom")
+
+        self._scale_type = tk.StringVar(
+            self, streamer_config["scale"].title(), "scale_type"
+        )
+        self._interpolation_type = tk.StringVar(
+            self,
+            streamer_config["interpolation"].title(),
+            "interpolation_type",
+        )
+
+        self._gamma = tk.DoubleVar(self, streamer_config["gamma"], "gamma")
+
+        # predeclared UI elements for further manipulation
+
+        self._source_video_container = None
+        self._source_camera_container = None
+
+        self._connection_udp_container = None
+        self._connection_serial_container = None
+
+        self.createWidgets()
+
+        self._updateType("source_type", "", "w")
+        self._updateType("connection_type", "", "w")
+
+    def createMenu(self):
         menubar = Menu(self)
         self.config(menu=menubar)
 
@@ -31,189 +100,248 @@ class App(tk.Tk):
         file_menu.add_command(label="Exit", command=self.destroy)
         menubar.add_cascade(label="File", menu=file_menu)
 
-    def create_widgets(self):
+    def createWidgets(self):
         source_container = ttk.LabelFrame(self, text="Source")
-        source_container.grid(
-            column=0, row=0, rowspan=2, sticky="N", padx=10, pady=10, ipady=5
-        )
+        source_container.grid(column=0, row=0, rowspan=2, sticky=tk.N, padx=10, pady=10)
 
         source_type_container = ttk.Frame(source_container)
-        source_type_container.grid(row=0, sticky="W", padx=5, pady=5)
+        source_type_container.grid(row=0, sticky=tk.W, padx=5, pady=5)
 
-        ttk.Radiobutton(source_type_container, text="Video", value="video").pack(
-            side=tk.LEFT, padx=5
+        ttk.Radiobutton(
+            source_type_container,
+            text="Video",
+            value="video",
+            variable=self._source_type,
+        ).pack(side=tk.LEFT)
+        ttk.Radiobutton(
+            source_type_container,
+            text="Camera",
+            value="camera",
+            variable=self._source_type,
+        ).pack(side=tk.LEFT, padx=5)
+
+        self._source_video_container = ttk.Frame(source_container)
+        self._source_video_container.grid(row=1, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(self._source_video_container, text="File/URL").pack(
+            side=tk.LEFT, padx=2
         )
-        ttk.Radiobutton(source_type_container, text="Camera", value="camera").pack(
-            side=tk.LEFT, padx=5
+        ttk.Entry(self._source_video_container, textvariable=self._source).pack(
+            side=tk.LEFT, fill=tk.X, expand=True
+        )
+        ttk.Button(self._source_video_container, text="Browse...").pack(
+            side=tk.LEFT, padx=2
         )
 
-        source_video_container = ttk.Frame(source_container)
-        source_video_container.grid(row=1, sticky="W", padx=5, pady=5)
-        ttk.Entry(source_video_container).pack(side=tk.LEFT, fill="x", expand=True)
-        ttk.Button(source_video_container, text="Browse...").pack(side=tk.LEFT, padx=5)
-        ttk.Checkbutton(source_container, text="Loop").grid(
-            row=2, sticky="W", padx=5, pady=5
-        )
+        ttk.Checkbutton(
+            self._source_video_container, text="Loop", variable=self._loop
+        ).pack(side=tk.LEFT, padx=5)
 
-        ttk.Spinbox(source_container, width=5, values=tuple(range(10))).grid(
-            row=3, sticky="W", padx=5, pady=5
+        self._source_camera_container = ttk.Frame(source_container)
+        self._source_camera_container.grid(row=2, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(self._source_camera_container, text="Camera index").pack(
+            side=tk.LEFT, padx=2
         )
+        ttk.Spinbox(
+            self._source_camera_container,
+            width=5,
+            values=tuple(range(10)),
+            textvariable=self._camera_index,
+        ).pack(side=tk.LEFT, padx=2)
+        ttk.Label(self._source_camera_container, text="Width").pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Entry(
+            self._source_camera_container, width=5, textvariable=self._camera_width
+        ).pack(side=tk.LEFT, padx=2, pady=2)
+        ttk.Label(self._source_camera_container, text="Height").pack(
+            side=tk.LEFT, padx=2
+        )
+        ttk.Entry(
+            self._source_camera_container, width=5, textvariable=self._camera_height
+        ).pack(side=tk.LEFT, padx=2)
 
         tk.Canvas(source_container, width=320, height=180, bg="black").grid(
-            row=4, sticky="W", padx=5, pady=5
+            row=3, sticky=tk.W, padx=5, pady=5
         )
+
         ttk.Button(source_container, text="Start").grid(
-            row=5, sticky="E", padx=5, pady=5
+            row=4, sticky=tk.E, padx=5, pady=5
         )
 
         streamers_container = ttk.LabelFrame(self, text="WLED instance(s)")
-        streamers_container.grid(
-            column=1, row=0, sticky="EW", padx=10, pady=10, ipadx=5
-        )
+        streamers_container.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=10)
 
-        tk.Listbox(streamers_container, width=30, height=4).pack(side=tk.LEFT, expand=True, padx=5, pady=5)
+        tk.Listbox(streamers_container, width=30, height=4).pack(
+            side=tk.LEFT, expand=True, padx=5, pady=5
+        )
         ttk.Button(streamers_container, text="Add").pack(side=tk.TOP, pady=5)
-        ttk.Button(streamers_container, text="Remove").pack(side=tk.TOP, pady=5)
+        ttk.Button(streamers_container, text="Remove").pack(side=tk.TOP)
 
         config_container = ttk.LabelFrame(self, text="Configuration")
         config_container.grid(column=1, row=1, padx=10, pady=10)
 
         ttk.Label(config_container, text="Connection").grid(
-            column=0, row=0, sticky="W", padx=5, pady=5
+            column=0, row=0, sticky=tk.W, padx=5, pady=5
         )
         connection_container = ttk.Frame(config_container)
-        connection_container.grid(column=1, row=0, sticky="W", padx=5, pady=5)
+        connection_container.grid(column=1, row=0, sticky=tk.W, padx=5, pady=5)
 
         connection_type_container = ttk.Frame(connection_container)
-        connection_type_container.grid(column=0, row=0, sticky="W", padx=5, pady=5)
+        connection_type_container.grid(column=0, row=0, sticky=tk.W, pady=5)
 
-        ttk.Radiobutton(connection_type_container, text="Network", value="udp").pack(
-            side=tk.LEFT, padx=5
-        )
-        ttk.Radiobutton(connection_type_container, text="Serial", value="serial").pack(
-            side=tk.LEFT, padx=5
-        )
-        connection_udp_container = ttk.Frame(connection_container)
-        connection_udp_container.grid(column=0, row=1, sticky="W", padx=5)
+        ttk.Radiobutton(
+            connection_type_container,
+            text="Network",
+            value="udp",
+            variable=self._connection_type,
+        ).pack(side=tk.LEFT)
+        ttk.Radiobutton(
+            connection_type_container,
+            text="Serial",
+            value="serial",
+            variable=self._connection_type,
+        ).pack(side=tk.LEFT)
 
-        ttk.Label(connection_udp_container, text="Host").grid(
-            column=0, row=0, padx=2, pady=2
-        )
-        ttk.Entry(connection_udp_container).grid(column=1, row=0, padx=2, pady=2)
-        ttk.Label(connection_udp_container, text="Port").grid(
-            column=0, row=1, padx=2, pady=2
-        )
-        ttk.Entry(connection_udp_container, width=6).grid(
-            column=1, row=1, sticky="W", padx=2, pady=2
-        )
+        self._connection_udp_container = ttk.Frame(connection_container)
+        self._connection_udp_container.grid(column=0, row=1, sticky=tk.W, padx=5)
 
-        connection_serial_container = ttk.Frame(connection_container)
-        connection_serial_container.grid(column=0, row=2, sticky="W", padx=5)
+        ttk.Label(self._connection_udp_container, text="Host").grid(
+            column=0, row=0, sticky=tk.W, pady=2
+        )
+        ttk.Entry(
+            self._connection_udp_container, width=18, textvariable=self._udp_host
+        ).grid(column=1, row=0, padx=2, pady=2)
+        ttk.Label(self._connection_udp_container, text="Port").grid(
+            column=0, row=1, sticky=tk.W, pady=2
+        )
+        ttk.Entry(
+            self._connection_udp_container, width=6, textvariable=self._udp_port
+        ).grid(column=1, row=1, sticky=tk.W, padx=2, pady=2)
 
-        ttk.Label(connection_serial_container, text="Port").grid(
-            column=0, row=0, sticky="W", padx=2, pady=2
+        self._connection_serial_container = ttk.Frame(connection_container)
+        self._connection_serial_container.grid(column=0, row=2, sticky=tk.W, padx=5)
+
+        ttk.Label(self._connection_serial_container, text="Port").grid(
+            column=0, row=0, sticky=tk.W, pady=2
         )
-        ttk.Entry(connection_serial_container).grid(column=1, row=0, padx=2, pady=2)
-        ttk.Label(connection_serial_container, text="Baudrate").grid(
-            column=0, row=1, padx=2, pady=2
+        ttk.Entry(
+            self._connection_serial_container, width=15, textvariable=self._serial_port
+        ).grid(column=1, row=0, padx=2, pady=2)
+        ttk.Label(self._connection_serial_container, text="Baudrate").grid(
+            column=0, row=1, sticky=tk.W, pady=2
         )
-        ttk.Entry(connection_serial_container, width=8).grid(
-            column=1, row=1, sticky="W", padx=2, pady=2
-        )
+        ttk.Entry(
+            self._connection_serial_container,
+            width=8,
+            textvariable=self._serial_baudrate,
+        ).grid(column=1, row=1, sticky=tk.W, padx=2, pady=2)
 
         ttk.Label(config_container, text="Dimensions").grid(
-            column=0, row=1, sticky="W", padx=5, pady=5
+            column=0, row=1, sticky=tk.W, padx=5, pady=5
         )
         size_container = ttk.Frame(config_container)
-        size_container.grid(column=1, row=1, sticky="W", padx=5, pady=5)
+        size_container.grid(column=1, row=1, sticky=tk.W, padx=5, pady=5)
         ttk.Label(size_container, text="Width").pack(side=tk.LEFT, padx=2)
-        ttk.Entry(size_container, width=5).pack(side=tk.LEFT, padx=2)
+        ttk.Entry(size_container, width=5, textvariable=self._matrix_width).pack(
+            side=tk.LEFT, padx=2
+        )
         ttk.Label(size_container, text="Height").pack(side=tk.LEFT, padx=2)
-        ttk.Entry(size_container, width=5).pack(side=tk.LEFT, padx=2)
+        ttk.Entry(size_container, width=5, textvariable=self._matrix_height).pack(
+            side=tk.LEFT, padx=2
+        )
 
         ttk.Label(config_container, text="Crop").grid(
-            column=0, row=2, sticky="W", padx=5, pady=5
+            column=0, row=2, sticky=tk.W, padx=5, pady=5
         )
         crop_container = ttk.Frame(config_container)
-        crop_container.grid(column=1, row=2, sticky="W", padx=5, pady=5)
+        crop_container.grid(column=1, row=2, sticky=tk.W, padx=5, pady=5)
         ttk.Label(crop_container, text="Top").grid(
-            column=0, row=0, columnspan=2, sticky="W"
+            column=0, row=0, columnspan=2, sticky=tk.W
         )
-        ttk.Entry(crop_container, width=5).grid(
+        ttk.Entry(crop_container, width=5, textvariable=self._crop_top).grid(
             column=2, row=0, columnspan=3, padx=2, pady=2
         )
         ttk.Label(crop_container, text="Left").grid(column=0, row=1)
-        ttk.Entry(crop_container, width=5).grid(
+        ttk.Entry(crop_container, width=5, textvariable=self._crop_left).grid(
             column=1, row=1, columnspan=2, padx=2, pady=2
         )
         ttk.Label(crop_container, text="Right").grid(column=6, row=1)
-        ttk.Entry(crop_container, width=5).grid(
+        ttk.Entry(crop_container, width=5, textvariable=self._crop_right).grid(
             column=4, row=1, columnspan=2, padx=2, pady=2
         )
         ttk.Label(crop_container, text="Bottom").grid(
-            column=0, row=2, columnspan=2, sticky="W"
+            column=0, row=2, columnspan=2, sticky=tk.W
         )
-        ttk.Entry(crop_container, width=5).grid(
+        ttk.Entry(crop_container, width=5, textvariable=self._crop_bottom).grid(
             column=2, row=2, columnspan=3, padx=2, pady=2
         )
 
         ttk.Label(config_container, text="Scale").grid(
-            column=0, row=3, sticky="W", padx=5, pady=5
+            column=0, row=3, sticky=tk.W, padx=5, pady=5
         )
         ttk.Combobox(
             config_container,
             state="readonly",
             values=["Stretch", "Fill", "Fit", "Crop"],
-        ).grid(column=1, row=3, sticky="W", padx=5)
+            textvariable=self._scale_type,
+        ).grid(column=1, row=3, sticky=tk.W, padx=5)
 
         ttk.Label(config_container, text="Interpolation").grid(
-            column=0, row=4, sticky="W", padx=5, pady=5
+            column=0, row=4, sticky=tk.W, padx=5, pady=5
         )
         ttk.Combobox(
-            config_container, state="readonly", values=["Smooth", "Hard"]
-        ).grid(column=1, row=4, sticky="W", padx=5)
+            config_container,
+            state="readonly",
+            values=["Smooth", "Hard"],
+            textvariable=self._interpolation_type,
+        ).grid(column=1, row=4, sticky=tk.W, padx=5)
 
         ttk.Label(config_container, text="Gamma").grid(
-            column=0, row=5, sticky="W", padx=5, pady=5
+            column=0, row=5, sticky=tk.W, padx=5, pady=5
         )
         ttk.Spinbox(
-            config_container, width=3, values=tuple(i / 10 for i in range(1, 11))
-        ).grid(column=1, sticky="W", row=5, padx=5)
+            config_container,
+            width=5,
+            values=tuple(i / 100 for i in range(1, 101)),
+            textvariable=self._gamma,
+        ).grid(column=1, sticky=tk.W, row=5, padx=5)
+
+    def _updateType(self, var, index, mode):
+        match var:
+            case "source_type":
+                if self._source_type.get() == "video":
+                    self._source_camera_container.grid_forget()
+                    self._source_video_container.grid(
+                        row=1, sticky=tk.W, padx=5, pady=5
+                    )
+                else:
+                    self._source_video_container.grid_forget()
+                    self._source_camera_container.grid(
+                        row=2, sticky=tk.W, padx=5, pady=5
+                    )
+            case "connection_type":
+                if self._connection_type.get() == "udp":
+                    self._connection_serial_container.grid_forget()
+                    self._connection_udp_container.grid(
+                        row=1, sticky=tk.W, padx=2, pady=5
+                    )
+                else:
+                    self._connection_udp_container.grid_forget()
+                    self._connection_serial_container.grid(
+                        row=2, sticky=tk.W, padx=2, pady=5
+                    )
 
 
 if __name__ == "__main__":
-    DEFAULT_CONFIG_FILE = "config.toml"
-    CONFIG_DEFAULTS = {
-        "source": "" if "--camera" not in sys.argv else 0,
-        "loop": False,
-        "camera": False,
-        "debug": False,
-    }
-    STREAMER_CONFIG_DEFAULTS = {
-        "host": "127.0.0.1",
-        "port": 21324,
-        "serial": "",
-        "baudrate": 115200,
-        "width": 0,
-        "height": 0,
-        "crop": [],
-        "scale": "fill",
-        "interpolation": "smooth",
-        "gamma": 0.5,
-    }
-
     parser = argparse.ArgumentParser()
 
-    #
-    # first parse arguments only for the config file
-    #
-    parser.add_argument("--config", default=DEFAULT_CONFIG_FILE)
+    parser.add_argument("--config", default=constants.DEFAULT_CONFIG_FILE)
     args = parser.parse_known_args()
 
     try:
         config = toml.load(args[0].config)
     except FileNotFoundError:
-        if args[0].config != DEFAULT_CONFIG_FILE:
+        if args[0].config != constants.DEFAULT_CONFIG_FILE:
             print("Specified config not found")
             sys.exit(0)
         config = {}

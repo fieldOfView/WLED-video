@@ -9,6 +9,7 @@ import cv2
 import src.loopablecamgear as loopablecamgear
 import src.udpstreamer as udpstreamer
 import src.serialstreamer as serialstreamer
+import src.constants as constants
 
 from src.utils import logger_handler
 
@@ -46,39 +47,19 @@ class VideoCapture:
 
 
 if __name__ == "__main__":
-    DEFAULT_CONFIG_FILE = "config.toml"
-    CONFIG_DEFAULTS = {
-        "source": "" if "--camera" not in sys.argv else 0,
-        "loop": False,
-        "camera": False,
-        "debug": False,
-    }
-    STREAMER_CONFIG_DEFAULTS = {
-        "host": "127.0.0.1",
-        "port": 21324,
-        "serial": "",
-        "baudrate": 115200,
-        "width": 0,
-        "height": 0,
-        "crop": [],
-        "scale": "fill",
-        "interpolation": "smooth",
-        "gamma": 0.5,
-    }
-
     parser = argparse.ArgumentParser()
 
     #
     # first parse arguments only for the config file
     #
-    parser.add_argument("--config", default=DEFAULT_CONFIG_FILE)
+    parser.add_argument("--config", default=constants.DEFAULT_CONFIG_FILE)
     if "--help" not in sys.argv and "-h" not in sys.argv:
         args = parser.parse_known_args()
 
         try:
             config = toml.load(args[0].config)
         except FileNotFoundError:
-            if args[0].config != DEFAULT_CONFIG_FILE:
+            if args[0].config != constants.DEFAULT_CONFIG_FILE:
                 print("Specified config not found")
                 sys.exit(0)
             config = {}
@@ -118,13 +99,13 @@ if __name__ == "__main__":
 
     # get default from config file or from defaults
     def getDefault(key: str) -> Union[str, int, float, bool, List[int]]:
-        return config[key] if key in config else CONFIG_DEFAULTS[key]
+        return config[key] if key in config else constants.CONFIG_DEFAULTS[key]
 
     def getStreamerDefault(key: str) -> Union[str, int, float, bool, List[int]]:
         return (
             stream_config[key]
             if key in stream_config
-            else STREAMER_CONFIG_DEFAULTS[key]
+            else constants.STREAMER_CONFIG_DEFAULTS[key]
         )
 
     parser.add_argument(
@@ -136,10 +117,7 @@ if __name__ == "__main__":
         type=int,
         default=getStreamerDefault("port"),
     )
-    parser.add_argument(
-        "--serial",
-        default=getStreamerDefault("serial")
-    )
+    parser.add_argument("--serial", default=getStreamerDefault("serial"))
     parser.add_argument(
         "--baudrate",
         type=int,
@@ -230,15 +208,19 @@ if __name__ == "__main__":
     }
 
     if args.serial == "" and "serial" not in config["wled"][0]:
-        config["wled"][0].update({
-            "host": args.host,
-            "port": args.port,
-        })
+        config["wled"][0].update(
+            {
+                "host": args.host,
+                "port": args.port,
+            }
+        )
     else:
-        config["wled"][0].update({
-            "serialport": args.serial,
-            "baudrate": args.baudrate,
-        })
+        config["wled"][0].update(
+            {
+                "serialport": args.serial,
+                "baudrate": args.baudrate,
+            }
+        )
 
     wled_streamers = []
 
