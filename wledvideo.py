@@ -3,47 +3,15 @@
 import sys
 import argparse
 import toml
-import logging
 import cv2
+from typing import Union, List
 
-import src.loopablecamgear as loopablecamgear
-import src.udpstreamer as udpstreamer
-import src.serialstreamer as serialstreamer
+from src.videocapture import VideoCapture
+from src.udpstreamer import UDPWLEDStreamer
+from src.serialstreamer import SerialWLEDStreamer
 import src.constants as constants
 
 from src.utils import logger_handler
-
-from typing import Union, List
-
-
-class VideoCapture:
-    def __init__(self, source: Union[str, int], loop: bool = False) -> None:
-        stream_mode = False
-        options = {}
-        if type(source) != int and "://" in source:
-            stream_mode = True
-            options = {"STREAM_RESOLUTION": "360p"}
-
-        self.logger = logging.getLogger("VideoCapture")
-        self.logger.propagate = False
-        self.logger.addHandler(logger_handler())
-        self.logger.setLevel(logging.DEBUG)
-
-        try:
-            self.video = loopablecamgear.LoopableCamGear(
-                source=source,
-                stream_mode=stream_mode,
-                logging=True,
-                loop=loop,
-                **options
-            ).start()
-        except ValueError:
-            self.logger.info("Source is not an URL that yt_dlp can handle.")
-            self.video = loopablecamgear.LoopableCamGear(
-                source=source,
-                logging=True,
-                loop=loop,
-            ).start()
 
 
 if __name__ == "__main__":
@@ -226,16 +194,16 @@ if __name__ == "__main__":
 
     for stream_config in config["wled"]:
         if "serialport" in stream_config:
-            streamer = serialstreamer.SerialWLEDStreamer(**stream_config)
+            streamer = SerialWLEDStreamer(**stream_config)
         else:
-            streamer = udpstreamer.UDPWLEDStreamer(**stream_config)
+            streamer = UDPWLEDStreamer(**stream_config)
         wled_streamers.append(streamer)
 
     player = VideoCapture(source=source, loop=args.loop)
 
     while True:
         try:
-            frame = player.video.read()
+            frame = player.read()
             if frame is None:
                 break
 
@@ -254,7 +222,7 @@ if __name__ == "__main__":
         except (KeyboardInterrupt, SystemExit):
             break
 
-    player.video.stop()
+    player.stop()
     cv2.destroyAllWindows()
     for wled_streamer in wled_streamers:
         wled_streamer.close()

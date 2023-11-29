@@ -3,11 +3,21 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Menu
+from tkinter import filedialog
+
 import toml
 import argparse
 import sys
+import PIL.Image, PIL.ImageTk
 
+from typing import List
+
+from src.videocapture import VideoCapture
+from src.udpstreamer import UDPWLEDStreamer
+from src.serialstreamer import SerialWLEDStreamer
 import src.constants as constants
+
+from src.utils import logger_handler
 
 
 class App(tk.Tk):
@@ -43,7 +53,7 @@ class App(tk.Tk):
         streamer_config = constants.STREAMER_CONFIG_DEFAULTS
         self._connection_type = tk.StringVar(
             self,
-            "udp" if (streamer_config["host"] is not "") else "serial",
+            "udp" if (streamer_config["host"] != "") else "serial",
             "connection_type",
         )
         self._connection_type.trace("w", self._updateType)
@@ -82,10 +92,20 @@ class App(tk.Tk):
         self._connection_udp_container = None
         self._connection_serial_container = None
 
+        self._start_button = None
+        self._stop_button = None
+
+        self._canvas = None
+        self._frame_image = None
+
         self.createWidgets()
 
         self._updateType("source_type", "", "w")
         self._updateType("connection_type", "", "w")
+
+        # set up app logic
+
+        self._video_capture = None
 
     def createMenu(self):
         menubar = Menu(self)
@@ -128,9 +148,9 @@ class App(tk.Tk):
         ttk.Entry(self._source_video_container, textvariable=self._source).pack(
             side=tk.LEFT, fill=tk.X, expand=True
         )
-        ttk.Button(self._source_video_container, text="Browse...").pack(
-            side=tk.LEFT, padx=2
-        )
+        ttk.Button(
+            self._source_video_container, text="Browse...", command=self._browseVideo
+        ).pack(side=tk.LEFT, padx=2)
 
         ttk.Checkbutton(
             self._source_video_container, text="Loop", variable=self._loop
@@ -160,13 +180,19 @@ class App(tk.Tk):
             self._source_camera_container, width=5, textvariable=self._camera_height
         ).pack(side=tk.LEFT, padx=2)
 
-        tk.Canvas(source_container, width=320, height=180, bg="black").grid(
-            row=3, sticky=tk.W, padx=5, pady=5
-        )
+        self._canvas = tk.Canvas(source_container, width=480, height=270, bg="black")
+        self._canvas.grid(row=3, sticky=tk.W, padx=5, pady=5)
 
-        ttk.Button(source_container, text="Start").grid(
-            row=4, sticky=tk.E, padx=5, pady=5
+        play_controls_container = tk.Frame(source_container)
+        play_controls_container.grid(row=4, sticky=tk.E, padx=5, pady=5)
+
+        self._start_button = ttk.Button(
+            play_controls_container, text="Start", command=self._startVideo
         )
+        self._stop_button = ttk.Button(
+            play_controls_container, text="Stop", command=self._stopVideo
+        )
+        self._start_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         streamers_container = ttk.LabelFrame(self, text="WLED instance(s)")
         streamers_container.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=10)
@@ -330,6 +356,59 @@ class App(tk.Tk):
                     self._connection_serial_container.grid(
                         row=2, sticky=tk.W, padx=2, pady=5
                     )
+
+    def _browseVideo(self):
+        filename = filedialog.askopenfilename(
+            filetypes=(
+                ("Video", ("*.mp4", "*.mov", "*.avi", "*.mkv", "*.mpeg")),
+                ("All Files", "*.*"),
+            )
+        )
+        if filename:
+            self._source.set(filename)
+
+    def _startVideo(self):
+        if self._source_type.get() == "video":
+            self._video_capture = VideoCapture(self._source.get(), self._loop.get())
+        else:
+            self._video_capture = VideoCapture(self._camera_index.get())
+
+        self._start_button.forget()
+        self._stop_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self._updateVideo()
+
+    def _stopVideo(self):
+        if not self._video_capture:
+            return
+
+        self._video_capture.stop()
+        self._video_capture = None
+
+        self._stop_button.forget()
+        self._start_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self._canvas.create_rectangle(
+            0, 0, self._canvas.winfo_width(), self._canvas.winfo_height(), fill="black"
+        )
+
+    def _updateVideo(self):
+        if not self._video_capture:
+            return
+
+        frame = self._video_capture.read()
+        if frame is None:
+            self._stopVideo()
+
+        frame_image = PIL.Image.fromarray(frame[:, :, ::-1])
+        frame_image = frame_image.resize(
+            (self._canvas.winfo_width(), self._canvas.winfo_height())
+        )
+        self._frame_image = PIL.ImageTk.PhotoImage(image=frame_image)
+
+        self._canvas.create_image(0, 0, image=self._frame_image, anchor=tk.NW)
+
+        self.after(1, self._updateVideo)
 
 
 if __name__ == "__main__":
