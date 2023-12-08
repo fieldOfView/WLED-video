@@ -6,6 +6,7 @@ import toml
 import logging
 import cv2
 
+import src.displaycapture as displaycapture
 import src.loopablecamgear as loopablecamgear
 import src.udpstreamer as udpstreamer
 import src.serialstreamer as serialstreamer
@@ -15,7 +16,7 @@ from src.utils import logger_handler
 from typing import Union, List
 
 
-class VideoCapture:
+class VideoCapture(loopablecamgear.LoopableCamGear):
     def __init__(self, source: Union[str, int], loop: bool = False) -> None:
         stream_mode = False
         options = {}
@@ -29,20 +30,21 @@ class VideoCapture:
         self.logger.setLevel(logging.DEBUG)
 
         try:
-            self.video = loopablecamgear.LoopableCamGear(
+            super().__init__(
                 source=source,
                 stream_mode=stream_mode,
                 logging=True,
                 loop=loop,
                 **options
-            ).start()
+            )
         except ValueError:
             self.logger.info("Source is not an URL that yt_dlp can handle.")
-            self.video = loopablecamgear.LoopableCamGear(
+            super().__init__(
                 source=source,
                 logging=True,
                 loop=loop,
-            ).start()
+            )
+        self.start()
 
 
 if __name__ == "__main__":
@@ -51,6 +53,7 @@ if __name__ == "__main__":
         "source": "" if "--camera" not in sys.argv else 0,
         "loop": False,
         "camera": False,
+        "display": False,
         "debug": False,
     }
     STREAMER_CONFIG_DEFAULTS = {
@@ -136,10 +139,7 @@ if __name__ == "__main__":
         type=int,
         default=getStreamerDefault("port"),
     )
-    parser.add_argument(
-        "--serial",
-        default=getStreamerDefault("serial")
-    )
+    parser.add_argument("--serial", default=getStreamerDefault("serial"))
     parser.add_argument(
         "--baudrate",
         type=int,
@@ -183,23 +183,31 @@ if __name__ == "__main__":
         help="adjust for non-linearity of LEDs, defaults to 0.5",
     )
 
-    parser.add_argument(
-        "source",
-        nargs="?" if "source" in config or "--camera" in sys.argv else 1,
-        type=str if "--camera" not in sys.argv else int,
-        default=getDefault("source"),
-        help="The video file to stream (required unless a source is specified in the config file). If --camera is set, 'source' shall be the index of the camera source (defaulting to 0)",
-    )
+    if "--display" not in sys.argv:
+        parser.add_argument(
+            "source",
+            nargs="?" if "source" in config or "--camera" in sys.argv else 1,
+            type=int if "--camera" in sys.argv else str,
+            default=getDefault("source"),
+            help="The video file to stream (required unless a source is specified in the config file). If --camera is set, 'source' shall be the index of the camera source (defaulting to 0)",
+        )
     parser.add_argument(
         "--loop",
         action="store_true",
         default=getDefault("loop"),
     )
-    parser.add_argument(
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument(
         "--camera",
         action="store_true",
         default=getDefault("camera"),
         help="use a webcam instead of a video",
+    )
+    source_group.add_argument(
+        "--display",
+        action="store_true",
+        default=getDefault("display"),
+        help="grab the desktop instead of a video",
     )
 
     parser.add_argument(
@@ -211,13 +219,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.source:
+    if not args.display and args.source:
         if isinstance(args.source, list):
             source = args.source[0]
         else:
             source = args.source
     else:
-        if args.camera:
+        if args.camera or args.display:
             source = 0
 
     config["wled"][0] = {
@@ -230,15 +238,19 @@ if __name__ == "__main__":
     }
 
     if args.serial == "" and "serial" not in config["wled"][0]:
-        config["wled"][0].update({
-            "host": args.host,
-            "port": args.port,
-        })
+        config["wled"][0].update(
+            {
+                "host": args.host,
+                "port": args.port,
+            }
+        )
     else:
-        config["wled"][0].update({
-            "serialport": args.serial,
-            "baudrate": args.baudrate,
-        })
+        config["wled"][0].update(
+            {
+                "serialport": args.serial,
+                "baudrate": args.baudrate,
+            }
+        )
 
     wled_streamers = []
 
@@ -249,11 +261,14 @@ if __name__ == "__main__":
             streamer = udpstreamer.UDPWLEDStreamer(**stream_config)
         wled_streamers.append(streamer)
 
-    player = VideoCapture(source=source, loop=args.loop)
+    if not args.display:
+        player = VideoCapture(source=source, loop=args.loop)
+    else:
+        player = displaycapture.DisplayCapture()
 
     while True:
         try:
-            frame = player.video.read()
+            frame = player.read()
             if frame is None:
                 break
 
@@ -272,7 +287,9 @@ if __name__ == "__main__":
         except (KeyboardInterrupt, SystemExit):
             break
 
-    player.video.stop()
+    if not args.display:
+        player.stop()
+
     cv2.destroyAllWindows()
     for wled_streamer in wled_streamers:
         wled_streamer.close()

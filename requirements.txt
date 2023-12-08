@@ -6,3 +6,5 @@ opencv-python
 numpy
 vidgear
 yt-dlp
+pyscreenshot
+dxcam; sys_platform == 'windows'
