@@ -9,6 +9,7 @@ import toml
 import argparse
 import sys
 import PIL.Image, PIL.ImageTk
+import time
 
 from typing import List
 
@@ -34,7 +35,11 @@ class App(tk.Tk):
         config = constants.CONFIG_DEFAULTS
         self._source_type = tk.StringVar(
             self,
-            "video" if not config["camera"] else "camera",
+            "video"
+            if not config["camera"]
+            else "camera"
+            if not config["display"]
+            else "display",
             "source_type",
         )
         self._source_type.trace("w", self._updateType)
@@ -108,6 +113,7 @@ class App(tk.Tk):
         # set up app logic
 
         self._video_capture = None
+        self._last_display_capture_time = time.time()
 
     def createMenu(self):
         menubar = Menu(self)
@@ -416,6 +422,14 @@ class App(tk.Tk):
     def _updateVideo(self):
         if not self._video_capture:
             return
+
+        if (
+            self._source_type.get() == "display"
+            and time.time() - self._last_display_capture_time < 0.1
+        ):
+            self.after(1, self._updateVideo)
+            return
+        self._last_display_capture_time = time.time()
 
         frame = self._video_capture.read()
         if frame is None:
