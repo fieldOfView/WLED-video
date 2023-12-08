@@ -7,11 +7,10 @@ import cv2
 from typing import Union, List
 
 from src.videocapture import VideoCapture
+from src.displaycapture import DisplayCapture
 from src.udpstreamer import UDPWLEDStreamer
 from src.serialstreamer import SerialWLEDStreamer
 import src.constants as constants
-
-from src.utils import logger_handler
 
 
 if __name__ == "__main__":
@@ -129,23 +128,31 @@ if __name__ == "__main__":
         help="adjust for non-linearity of LEDs, defaults to 0.5",
     )
 
-    parser.add_argument(
-        "source",
-        nargs="?" if "source" in config or "--camera" in sys.argv else 1,
-        type=str if "--camera" not in sys.argv else int,
-        default=getDefault("source"),
-        help="The video file to stream (required unless a source is specified in the config file). If --camera is set, 'source' shall be the index of the camera source (defaulting to 0)",
-    )
+    if "--display" not in sys.argv:
+        parser.add_argument(
+            "source",
+            nargs="?" if "source" in config or "--camera" in sys.argv else 1,
+            type=int if "--camera" in sys.argv else str,
+            default=getDefault("source"),
+            help="The video file to stream (required unless a source is specified in the config file). If --camera is set, 'source' shall be the index of the camera source (defaulting to 0)",
+        )
     parser.add_argument(
         "--loop",
         action="store_true",
         default=getDefault("loop"),
     )
-    parser.add_argument(
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument(
         "--camera",
         action="store_true",
         default=getDefault("camera"),
         help="use a webcam instead of a video",
+    )
+    source_group.add_argument(
+        "--display",
+        action="store_true",
+        default=getDefault("display"),
+        help="grab the desktop instead of a video",
     )
 
     parser.add_argument(
@@ -157,13 +164,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.source:
+    if not args.display and args.source:
         if isinstance(args.source, list):
             source = args.source[0]
         else:
             source = args.source
     else:
-        if args.camera:
+        if args.camera or args.display:
             source = 0
 
     config["wled"][0] = {
@@ -199,7 +206,10 @@ if __name__ == "__main__":
             streamer = UDPWLEDStreamer(**stream_config)
         wled_streamers.append(streamer)
 
-    player = VideoCapture(source=source, loop=args.loop)
+    if not args.display:
+        player = VideoCapture(source=source, loop=args.loop)
+    else:
+        player = DisplayCapture()
 
     while True:
         try:
@@ -222,7 +232,9 @@ if __name__ == "__main__":
         except (KeyboardInterrupt, SystemExit):
             break
 
-    player.stop()
+    if not args.display:
+        player.stop()
+
     cv2.destroyAllWindows()
     for wled_streamer in wled_streamers:
         wled_streamer.close()

@@ -5,6 +5,7 @@ CONFIG_DEFAULTS = {
     "source": "" if "--camera" not in sys.argv else 0,
     "loop": False,
     "camera": False,
+    "display": False,
     "debug": False,
 }
 STREAMER_CONFIG_DEFAULTS = {
