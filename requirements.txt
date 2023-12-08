@@ -3,6 +3,7 @@ toml
 colorlog
 pyserial
 opencv-python
+pillow
 numpy
 vidgear
 yt-dlp

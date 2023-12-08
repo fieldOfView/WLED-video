@@ -13,6 +13,7 @@ import PIL.Image, PIL.ImageTk
 from typing import List
 
 from src.videocapture import VideoCapture
+from src.displaycapture import DisplayCapture
 from src.udpstreamer import UDPWLEDStreamer
 from src.serialstreamer import SerialWLEDStreamer
 import src.constants as constants
@@ -84,10 +85,11 @@ class App(tk.Tk):
 
         self._gamma = tk.DoubleVar(self, streamer_config["gamma"], "gamma")
 
-        # predeclared UI elements for further manipulation
+        # forward declaration of UI elements for further manipulation
 
         self._source_video_container = None
         self._source_camera_container = None
+        self._source_display_container = None
 
         self._connection_udp_container = None
         self._connection_serial_container = None
@@ -139,6 +141,12 @@ class App(tk.Tk):
             value="camera",
             variable=self._source_type,
         ).pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(
+            source_type_container,
+            text="Display",
+            value="display",
+            variable=self._source_type,
+        ).pack(side=tk.LEFT, padx=5)
 
         self._source_video_container = ttk.Frame(source_container)
         self._source_video_container.grid(row=1, sticky=tk.W, padx=5, pady=5)
@@ -157,7 +165,6 @@ class App(tk.Tk):
         ).pack(side=tk.LEFT, padx=5)
 
         self._source_camera_container = ttk.Frame(source_container)
-        self._source_camera_container.grid(row=2, sticky=tk.W, padx=5, pady=5)
         ttk.Label(self._source_camera_container, text="Camera index").pack(
             side=tk.LEFT, padx=2
         )
@@ -179,6 +186,8 @@ class App(tk.Tk):
         ttk.Entry(
             self._source_camera_container, width=5, textvariable=self._camera_height
         ).pack(side=tk.LEFT, padx=2)
+
+        self._source_display_container = ttk.Frame(source_container)
 
         self._canvas = tk.Canvas(source_container, width=480, height=270, bg="black")
         self._canvas.grid(row=3, sticky=tk.W, padx=5, pady=5)
@@ -335,16 +344,25 @@ class App(tk.Tk):
     def _updateType(self, var, index, mode):
         match var:
             case "source_type":
-                if self._source_type.get() == "video":
-                    self._source_camera_container.grid_forget()
-                    self._source_video_container.grid(
-                        row=1, sticky=tk.W, padx=5, pady=5
-                    )
-                else:
-                    self._source_video_container.grid_forget()
-                    self._source_camera_container.grid(
-                        row=2, sticky=tk.W, padx=5, pady=5
-                    )
+                match self._source_type.get():
+                    case "video":
+                        self._source_camera_container.grid_forget()
+                        self._source_display_container.grid_forget()
+                        self._source_video_container.grid(
+                            row=1, sticky=tk.W, padx=5, pady=5
+                        )
+                    case "camera":
+                        self._source_video_container.grid_forget()
+                        self._source_display_container.grid_forget()
+                        self._source_camera_container.grid(
+                            row=2, sticky=tk.W, padx=5, pady=5
+                        )
+                    case "display":
+                        self._source_video_container.grid_forget()
+                        self._source_camera_container.grid_forget()
+                        self._source_display_container.grid(
+                            row=2, sticky=tk.W, padx=5, pady=5
+                        )
             case "connection_type":
                 if self._connection_type.get() == "udp":
                     self._connection_serial_container.grid_forget()
@@ -368,10 +386,13 @@ class App(tk.Tk):
             self._source.set(filename)
 
     def _startVideo(self):
-        if self._source_type.get() == "video":
-            self._video_capture = VideoCapture(self._source.get(), self._loop.get())
-        else:
-            self._video_capture = VideoCapture(self._camera_index.get())
+        match self._source_type.get():
+            case "video":
+                self._video_capture = VideoCapture(self._source.get(), self._loop.get())
+            case "camera":
+                self._video_capture = VideoCapture(self._camera_index.get())
+            case "display":
+                self._video_capture = DisplayCapture()
 
         self._start_button.forget()
         self._stop_button.pack(side=tk.LEFT, padx=5, pady=5)
