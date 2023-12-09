@@ -1,10 +1,10 @@
-import cv2
-import numpy as np
-
-import serial
 import json
+import serial
 
 from typing import List
+
+import numpy as np
+import cv2
 
 from .wledstreamer import WLEDStreamer
 
@@ -12,7 +12,7 @@ from .wledstreamer import WLEDStreamer
 class SerialWLEDStreamer(WLEDStreamer):
     def __init__(
         self,
-        serialport: str = "COM3",
+        serialport: str = "COM3:",
         baudrate: int = 115200,
         width: int = 0,
         height: int = 0,

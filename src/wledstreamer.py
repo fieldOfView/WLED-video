@@ -1,11 +1,10 @@
-import cv2
-import numpy as np
-
 import math
 import logging
-import sys
 
 from typing import List
+
+import numpy as np
+import cv2
 
 from .utils import logger_handler
 
@@ -27,32 +26,53 @@ class WLEDStreamer:
 
         self._wled_info = {}  # type: Dict[str, Any]
 
+        self.width = 0
+        self.height = 0
+
+        self.crop = []
+        self.scale = ""
+        self._interpolation = 0
+        self._gamma_table = [0] * 256
+
+        self.setCrop(crop)
+        self.setScale(scale)
+        self.setInterpolation(interpolation)
+        self.setGamma(gamma)
+
+
+    def close(self):
+        pass
+
+    def setSize(self, width: int, height: int):
         self.width = width
         self.height = height
+
         if self.width == 0 or self.height == 0:
             self.logger.info("Getting dimensions from wled...")
             self.width, self.height = self._getDimensions()
             self.logger.debug("width: %d, height: %d" % (self.width, self.height))
             if self.width == 0 or self.height == 0:
-                self.logger.error(
+                raise(Exception(
                     "Could not get width and/or height from wled instance."
-                )
-                sys.exit()
+                ))
         self._display_ratio = self.width / self.height
 
+
+    def setCrop(self, crop: List[int]):
         self.crop = crop
+
+    def setScale(self, scale):
         self.scale = scale
 
-        inverseGamma = 1 / gamma
-        self._gamma_table = [((i / 255) ** inverseGamma) * 255 for i in range(256)]
-        self._gamma_table = np.array(self._gamma_table, np.uint8)
-
+    def setInterpolation(self, interpolation: str):
         self._interpolation = (
             cv2.INTER_NEAREST if interpolation == "hard" else cv2.INTER_AREA
         )
 
-    def close(self):
-        pass
+    def setGamma(self, gamma: float):
+        inverseGamma = 1 / gamma
+        self._gamma_table = [((i / 255) ** inverseGamma) * 255 for i in range(256)]
+        self._gamma_table = np.array(self._gamma_table, np.uint8)
 
     def cropFrame(self, frame: np.ndarray) -> np.ndarray:
         if self.crop:

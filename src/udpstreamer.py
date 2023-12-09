@@ -1,11 +1,11 @@
-import cv2
-import numpy as np
-
+import json
 import socket
 import requests
-import json
 
 from typing import List
+
+import numpy as np
+import cv2
 
 from .wledstreamer import WLEDStreamer
 

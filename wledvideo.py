@@ -2,9 +2,9 @@
 
 import sys
 import argparse
+from typing import Union, List
 import toml
 import cv2
-from typing import Union, List
 
 from src.videocapture import VideoCapture
 from src.displaycapture import DisplayCapture
@@ -200,10 +200,14 @@ if __name__ == "__main__":
     wled_streamers = []
 
     for stream_config in config["wled"]:
-        if "serialport" in stream_config:
-            streamer = SerialWLEDStreamer(**stream_config)
-        else:
-            streamer = UDPWLEDStreamer(**stream_config)
+        try:
+            if "serialport" in stream_config:
+                streamer = SerialWLEDStreamer(**stream_config)
+            else:
+                streamer = UDPWLEDStreamer(**stream_config)
+        except Exception as e:
+            print(f"Error: {e}")
+            sys.exit()
         wled_streamers.append(streamer)
 
     if not args.display:
