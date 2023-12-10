@@ -2,12 +2,13 @@
 
 import sys
 import argparse
-from typing import Union, List
+from typing import Union, List, Dict, Any
 import toml
 import cv2
 
 from src.videocapture import VideoCapture
 from src.displaycapture import DisplayCapture
+from src.wledstreamer import WLEDStreamer
 from src.udpstreamer import UDPWLEDStreamer
 from src.serialstreamer import SerialWLEDStreamer
 import src.constants as constants
@@ -29,14 +30,14 @@ if __name__ == "__main__":
             if args[0].config != constants.DEFAULT_CONFIG_FILE:
                 print("Specified config not found")
                 sys.exit(0)
-            config = {}
+            config: Dict[str, Any] = {}
     else:
-        config = {}
+        config: Dict[str, Any] = {}
 
     try:
         stream_config = config["wled"]
     except KeyError:
-        stream_config = {}
+        stream_config: Dict[str, Any] = {}
     if isinstance(stream_config, List):
         stream_config = stream_config[0]
     if "wled" not in config:
@@ -197,7 +198,7 @@ if __name__ == "__main__":
             }
         )
 
-    wled_streamers = []
+    wled_streamers: List[WLEDStreamer] = []
 
     for stream_config in config["wled"]:
         try:

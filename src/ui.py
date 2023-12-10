@@ -1,3 +1,6 @@
+from typing import Optional
+
+import numpy as np
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Menu
@@ -6,25 +9,25 @@ from PIL import Image, ImageTk
 
 
 class UI:
-    def __init__(self, app):
+    def __init__(self, app) -> None:
         self._app = app
 
-        self._source_video_container = None
-        self._source_camera_container = None
-        self._source_display_container = None
+        self._source_video_container: Optional[tk.Frame] = None
+        self._source_camera_container: Optional[tk.Frame] = None
+        self._source_display_container: Optional[tk.Frame] = None
 
-        self._connection_udp_container = None
-        self._connection_serial_container = None
+        self._connection_udp_container: Optional[tk.Frame] = None
+        self._connection_serial_container: Optional[tk.Frame] = None
 
-        self._start_button = None
-        self._stop_button = None
+        self._start_button: Optional[tk.Button] = None
+        self._stop_button: Optional[tk.Button] = None
 
-        self._remove_streamer_button = None
+        self._remove_streamer_button: Optional[tk.Button] = None
 
-        self._canvas = None
-        self._frame_image = None
+        self._canvas: Optional[tk.Canvas] = None
+        self._frame_image: Optional[ImageTk] = None
 
-    def createMenu(self):
+    def createMenu(self) -> None:
         menubar = Menu(self._app)
         self._app.config(menu=menubar)
 
@@ -37,7 +40,7 @@ class UI:
         file_menu.add_command(label="Exit", command=self._app.destroy)
         menubar.add_cascade(label="File", menu=file_menu)
 
-    def createWidgets(self):
+    def createWidgets(self) -> None:
         source_container = ttk.LabelFrame(self._app, text="Source")
         source_container.grid(column=0, row=0, rowspan=2, sticky=tk.N, padx=10, pady=10)
 
@@ -106,9 +109,7 @@ class UI:
 
         self._source_display_container = ttk.Frame(source_container)
 
-        self._canvas = tk.Canvas(
-            source_container, width=480, height=270, bg="black"
-        )
+        self._canvas = tk.Canvas(source_container, width=480, height=270, bg="black")
         self._canvas.grid(row=3, sticky=tk.W, padx=5, pady=5)
 
         play_controls_container = tk.Frame(source_container)
@@ -135,11 +136,11 @@ class UI:
             "<<ListboxSelect>>", self._app._updateStreamerSelection
         )
         self._app._streamer_selector.pack(side=tk.LEFT, expand=True, padx=5, pady=5)
-        ttk.Button(streamers_container, text="Add", command=self._app._addStreamer).pack(
+        ttk.Button(streamers_container, text="Add", command=self._app.addStreamer).pack(
             side=tk.TOP, pady=5
         )
         self._remove_streamer_button = ttk.Button(
-            streamers_container, text="Remove", command=self._app._removeStreamer
+            streamers_container, text="Remove", command=self._app.removeStreamer
         )
         self._remove_streamer_button.pack(side=tk.TOP)
 
@@ -274,7 +275,7 @@ class UI:
             textvariable="gamma",
         ).grid(column=1, sticky=tk.W, row=5, padx=5)
 
-    def drawCanvasImage(self, frame):
+    def drawCanvasImage(self, frame: np.ndarray) -> None:
         # convert BGR opencv image to RGB PIL image
         frame_image = Image.fromarray(frame[:, :, ::-1])
 
@@ -285,13 +286,13 @@ class UI:
 
         self._canvas.create_image(0, 0, image=self._frame_image, anchor=tk.NW)
 
-    def clearCanvas(self):
+    def clearCanvas(self) -> None:
         self._canvas.create_rectangle(
             0, 0, self._canvas.winfo_width(), self._canvas.winfo_height(), fill="black"
         )
 
-    def createStreamerLabels(self, streamer_data):
-        streamer_labels = []
+    def createStreamerLabels(self, streamer_data: list[dict]) -> None:
+        streamer_labels: list[str] = []
         for streamer_config in streamer_data:
             if streamer_config["serial"]:
                 label = f"{streamer_config['serial']}"
@@ -304,7 +305,7 @@ class UI:
             tk.NORMAL if len(streamer_labels) > 1 else tk.DISABLED
         )
 
-    def updateType(self, var, index, mode):
+    def updateType(self, var: str, index: int, mode: str) -> None:
         match var:
             case "source_type":
                 match self._app.getvar("source_type"):
@@ -338,7 +339,7 @@ class UI:
                         row=2, sticky=tk.W, padx=2, pady=5
                     )
 
-    def updateStartStop(self, playing: bool):
+    def updateStartStop(self, playing: bool) -> None:
         if playing:
             self._start_button.forget()
             self._stop_button.pack(side=tk.LEFT, padx=5, pady=5)
@@ -346,7 +347,7 @@ class UI:
             self._stop_button.forget()
             self._start_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-    def _browseVideo(self):
+    def _browseVideo(self) -> None:
         filename = filedialog.askopenfilename(
             filetypes=(
                 ("Video", ("*.mp4", "*.mov", "*.avi", "*.mkv", "*.mpeg")),

@@ -3,12 +3,13 @@ from .loopablecamgear import LoopableCamGear
 from .utils import logger_handler
 import logging
 
-from typing import Union
+from typing import Union, Dict, Any
+
 
 class VideoCapture(LoopableCamGear):
     def __init__(self, source: Union[str, int], loop: bool = False) -> None:
         stream_mode = False
-        options = {}
+        options: Dict[str, Any] = {}
         if type(source) != int and "://" in source:
             stream_mode = True
             options = {"STREAM_RESOLUTION": "360p"}

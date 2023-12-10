@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+from typing import Union, List, Dict, Any, Optional
+
 import tkinter as tk
 
 import argparse
@@ -9,6 +11,7 @@ import toml
 
 from src.videocapture import VideoCapture
 from src.displaycapture import DisplayCapture
+from src.wledstreamer import WLEDStreamer
 from src.udpstreamer import UDPWLEDStreamer
 from src.serialstreamer import SerialWLEDStreamer
 from src.ui import UI
@@ -16,7 +19,7 @@ import src.constants as constants
 
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         self.title("WLED video")
@@ -101,18 +104,18 @@ class App(tk.Tk):
 
         # set up app logic
 
-        self._streamer_data = []
-        self._streamers = []
+        self._streamer_data: List[Dict[str, Any]] = []
+        self._streamers: List[WLEDStreamer] = []
         self._selected_streamer_index = -1
 
         self._ui.createWidgets()
 
-        self._video_capture = None
+        self._video_capture: Optional[Union[VideoCapture, DisplayCapture]] = None
         self._last_display_capture_time = time.time()
 
         self._addStreamer()
 
-    def startVideo(self):
+    def startVideo(self) -> None:
         match self._source_type.get():
             case "video":
                 self._video_capture = VideoCapture(self._source.get(), self._loop.get())
@@ -124,7 +127,7 @@ class App(tk.Tk):
         self._ui.updateStartStop(playing=True)
         self._updateVideo()
 
-    def stopVideo(self):
+    def stopVideo(self) -> None:
         if not self._video_capture:
             return
 
@@ -134,7 +137,7 @@ class App(tk.Tk):
         self._ui.updateStartStop(playing=False)
         self._ui.clearCanvas()
 
-    def _updateVideo(self):
+    def _updateVideo(self) -> None:
         if not self._video_capture:
             return
 
@@ -154,8 +157,8 @@ class App(tk.Tk):
 
         self.after(1, self._updateVideo)
 
-    def _createStreamerFromConfig(self, streamer_config):
-        streamer = None
+    def _createStreamerFromConfig(self, streamer_config: Dict[str, Any]) -> Optional[WLEDStreamer]:
+        streamer: Optional[WLEDStreamer] = None
         try:
             if streamer_config["serial"]:
                 # streamer = SerialWLEDStreamer(**streamer_config)
@@ -168,7 +171,7 @@ class App(tk.Tk):
         
         return streamer
 
-    def addStreamer(self):
+    def addStreamer(self) -> None:
         streamer_config = dict(constants.STREAMER_CONFIG_DEFAULTS)
         self._streamer_data.append(streamer_config)
 
@@ -180,7 +183,7 @@ class App(tk.Tk):
         self._streamer_selector.select_set(len(self._streamer_data) - 1)
         self._streamer_selector.event_generate("<<ListboxSelect>>")
 
-    def removeStreamer(self):
+    def removeStreamer(self) -> None:
         self._streamer_data.pop(self._selected_streamer_index)
         self._streamers.pop(self._selected_streamer_index)
         self._ui.createStreamerLabels(self._streamer_data)
@@ -192,7 +195,7 @@ class App(tk.Tk):
         self._selected_streamer_index = -1
         self._streamer_selector.event_generate("<<ListboxSelect>>")
 
-    def _updateStreamerSelection(self, event):
+    def _updateStreamerSelection(self, event: tk.Event) -> None:
         selected_indices = self._streamer_selector.curselection()
         if not selected_indices:
             # if the user double-clicks on another widget, the listbox looses its selection
@@ -244,7 +247,7 @@ class App(tk.Tk):
             self._interpolation_type.set(streamer_data["interpolation"].title())
             self._gamma.set(streamer_data["gamma"])
 
-    def _updateStreamerSetting(self, var, index, mode):
+    def _updateStreamerSetting(self, var: str, index: int, mode: str) -> None:
         if self._selected_streamer_index < 0:
             return
 
@@ -310,7 +313,7 @@ if __name__ == "__main__":
         if args[0].config != constants.DEFAULT_CONFIG_FILE:
             print("Specified config not found")
             sys.exit(0)
-        config = {}
+        config:Dict[str, Any] = {}
 
     app = App()
     app.mainloop()

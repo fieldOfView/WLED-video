@@ -1,7 +1,7 @@
+from typing import List
+
 import json
 import serial
-
-from typing import List
 
 import numpy as np
 import cv2
@@ -25,7 +25,7 @@ class SerialWLEDStreamer(WLEDStreamer):
 
         WLEDStreamer.__init__(self, width, height, crop, scale, interpolation, gamma)
 
-    def close(self):
+    def close(self) -> None:
         self._serial_device.close()
 
     def sendFrame(self, frame: np.ndarray) -> None:

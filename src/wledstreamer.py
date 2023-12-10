@@ -1,7 +1,7 @@
 import math
 import logging
 
-from typing import List
+from typing import List, Dict, Any
 
 import numpy as np
 import cv2
@@ -24,12 +24,12 @@ class WLEDStreamer:
         self.logger.addHandler(logger_handler())
         self.logger.setLevel(logging.DEBUG)
 
-        self._wled_info = {}  # type: Dict[str, Any]
+        self._wled_info: Dict[str, Any] = {}
 
         self.width = 0
         self.height = 0
 
-        self.crop = []
+        self.crop: list[int] = []
         self.scale = ""
         self._interpolation = 0
         self._gamma_table = [0] * 256

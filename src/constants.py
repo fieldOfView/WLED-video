@@ -1,8 +1,6 @@
-import sys
-
 DEFAULT_CONFIG_FILE = "config.toml"
 CONFIG_DEFAULTS = {
-    "source": "" if "--camera" not in sys.argv and "--display" not in sys.argv else 0,
+    "source": "",
     "loop": False,
     "camera": False,
     "display": False,
