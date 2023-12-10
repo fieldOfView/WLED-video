@@ -116,7 +116,12 @@ class UI:
 
         self._source_display_container = ttk.Frame(source_container)
 
-        self._canvas = tk.Canvas(source_container, width=self._canvas_size[0], height=self._canvas_size[1], bg="black")
+        self._canvas = tk.Canvas(
+            source_container,
+            width=self._canvas_size[0],
+            height=self._canvas_size[1],
+            bg="black",
+        )
         self._canvas.grid(row=3, sticky=tk.W, padx=5, pady=5)
 
         play_controls_container = tk.Frame(source_container)
@@ -133,24 +138,34 @@ class UI:
         streamers_container = ttk.LabelFrame(self._app, text="WLED instance(s)")
         streamers_container.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=10)
 
+        tk.Frame(streamers_container).pack(side=tk.LEFT, padx=2)
+
         self._streamer_selector = tk.Listbox(
             streamers_container,
-            width=30,
+            width=25,
             height=4,
             listvariable="streamer_labels",
         )
+        self._streamer_selector.pack(side=tk.LEFT, expand=True, pady=5)
 
-        self._streamer_selector.pack(side=tk.LEFT, expand=True, padx=5, pady=5)
+        streamers_scrollbar = ttk.Scrollbar(
+            streamers_container,
+            orient=tk.VERTICAL,
+            command=self._streamer_selector.yview
+        )
+        streamers_scrollbar.pack(side=tk.LEFT, fill=tk.Y, pady=5)
+        self._streamer_selector['yscrollcommand'] = streamers_scrollbar.set
+
         ttk.Button(streamers_container, text="Add", command=self._app.addStreamer).pack(
-            side=tk.TOP, pady=5
+            side=tk.TOP, pady=5, padx=5
         )
         self._remove_streamer_button = ttk.Button(
             streamers_container, text="Remove", command=self._app.removeStreamer
         )
-        self._remove_streamer_button.pack(side=tk.TOP)
+        self._remove_streamer_button.pack(side=tk.TOP, padx=5)
 
         config_container = ttk.LabelFrame(self._app, text="Configuration")
-        config_container.grid(column=1, row=1, padx=10, pady=10)
+        config_container.grid(column=1, row=1, padx=10, pady=10, sticky=tk.EW)
 
         ttk.Label(config_container, text="Connection").grid(
             column=0, row=0, sticky=tk.W, padx=5, pady=5
@@ -288,9 +303,15 @@ class UI:
         frame_image = Image.fromarray(frame[:, :, ::-1])
         frame_size = frame_image.size
         if frame_size[0] / frame_size[1] > self._canvas_size[0] / self._canvas_size[1]:
-            preview_size = (self._canvas_size[0], int(frame_size[1] * self._canvas_size[0] / frame_size[0]))
+            preview_size = (
+                self._canvas_size[0],
+                int(frame_size[1] * self._canvas_size[0] / frame_size[0]),
+            )
         else:
-            preview_size = (int(frame_size[0] * self._canvas_size[1] / frame_size[1]), self._canvas_size[1])
+            preview_size = (
+                int(frame_size[0] * self._canvas_size[1] / frame_size[1]),
+                self._canvas_size[1],
+            )
         frame_image = frame_image.resize(preview_size)
 
         self._frame_image = ImageTk.PhotoImage(image=frame_image)
