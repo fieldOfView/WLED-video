@@ -98,9 +98,6 @@ class App(tk.Tk):
         self._gamma = tk.DoubleVar(self, streamer_config["gamma"], "gamma")
         self._gamma.trace("w", self._updateStreamerSetting)
 
-        # forward declaration of UI elements for further manipulation
-
-        self._streamer_selector = None
 
         # set up app logic
 
@@ -109,11 +106,15 @@ class App(tk.Tk):
         self._selected_streamer_index = -1
 
         self._ui.createWidgets()
+        self._streamer_selector = self._ui.getStreamerSelector()
+        self._streamer_selector.bind(
+            "<<ListboxSelect>>", self._updateStreamerSelection
+        )
 
         self._video_capture: Optional[Union[VideoCapture, DisplayCapture]] = None
         self._last_display_capture_time = time.time()
 
-        self._addStreamer()
+        self.addStreamer()
 
     def startVideo(self) -> None:
         match self._source_type.get():

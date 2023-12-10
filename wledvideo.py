@@ -134,7 +134,7 @@ if __name__ == "__main__":
             "source",
             nargs="?" if "source" in config or "--camera" in sys.argv else 1,
             type=int if "--camera" in sys.argv else str,
-            default=getDefault("source"),
+            default=getDefault("source") if "--camera" not in sys.argv else 0,
             help="The video file to stream (required unless a source is specified in the config file). If --camera is set, 'source' shall be the index of the camera source (defaulting to 0)",
         )
     parser.add_argument(

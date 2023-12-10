@@ -1,3 +1,7 @@
+"""
+This module contains the UI class for the application.
+"""
+
 from typing import Optional
 
 import numpy as np
@@ -24,8 +28,11 @@ class UI:
 
         self._remove_streamer_button: Optional[tk.Button] = None
 
+        self._streamer_selector: Optional[tk.Listbox] = None
+
+        self._canvas_size = (480, 270)
         self._canvas: Optional[tk.Canvas] = None
-        self._frame_image: Optional[ImageTk] = None
+        self._frame_image: Optional[ImageTk.PhotoImage] = None
 
     def createMenu(self) -> None:
         menubar = Menu(self._app)
@@ -109,7 +116,7 @@ class UI:
 
         self._source_display_container = ttk.Frame(source_container)
 
-        self._canvas = tk.Canvas(source_container, width=480, height=270, bg="black")
+        self._canvas = tk.Canvas(source_container, width=self._canvas_size[0], height=self._canvas_size[1], bg="black")
         self._canvas.grid(row=3, sticky=tk.W, padx=5, pady=5)
 
         play_controls_container = tk.Frame(source_container)
@@ -126,16 +133,14 @@ class UI:
         streamers_container = ttk.LabelFrame(self._app, text="WLED instance(s)")
         streamers_container.grid(column=1, row=0, sticky=tk.EW, padx=10, pady=10)
 
-        self._app._streamer_selector = tk.Listbox(
+        self._streamer_selector = tk.Listbox(
             streamers_container,
             width=30,
             height=4,
             listvariable="streamer_labels",
         )
-        self._app._streamer_selector.bind(
-            "<<ListboxSelect>>", self._app._updateStreamerSelection
-        )
-        self._app._streamer_selector.pack(side=tk.LEFT, expand=True, padx=5, pady=5)
+
+        self._streamer_selector.pack(side=tk.LEFT, expand=True, padx=5, pady=5)
         ttk.Button(streamers_container, text="Add", command=self._app.addStreamer).pack(
             side=tk.TOP, pady=5
         )
@@ -275,13 +280,19 @@ class UI:
             textvariable="gamma",
         ).grid(column=1, sticky=tk.W, row=5, padx=5)
 
+    def getStreamerSelector(self) -> tk.Listbox:
+        return self._streamer_selector
+
     def drawCanvasImage(self, frame: np.ndarray) -> None:
         # convert BGR opencv image to RGB PIL image
         frame_image = Image.fromarray(frame[:, :, ::-1])
+        frame_size = frame_image.size
+        if frame_size[0] / frame_size[1] > self._canvas_size[0] / self._canvas_size[1]:
+            preview_size = (self._canvas_size[0], int(frame_size[1] * self._canvas_size[0] / frame_size[0]))
+        else:
+            preview_size = (int(frame_size[0] * self._canvas_size[1] / frame_size[1]), self._canvas_size[1])
+        frame_image = frame_image.resize(preview_size)
 
-        frame_image = frame_image.resize(
-            (self._canvas.winfo_width(), self._canvas.winfo_height())
-        )
         self._frame_image = ImageTk.PhotoImage(image=frame_image)
 
         self._canvas.create_image(0, 0, image=self._frame_image, anchor=tk.NW)

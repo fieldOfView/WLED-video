@@ -34,6 +34,7 @@ class WLEDStreamer:
         self._interpolation = 0
         self._gamma_table = [0] * 256
 
+        self.setSize(width, height)
         self.setCrop(crop)
         self.setScale(scale)
         self.setInterpolation(interpolation)
