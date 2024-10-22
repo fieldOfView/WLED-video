@@ -41,7 +41,7 @@ More options are available via `wledvideo --help`:
 
 ```
 usage: wledvideo [-h] [--config CONFIG] [--host HOST] [--port PORT] [--serial SERIAL] [--baudrate BAUDRATE] [--width WIDTH] [--height HEIGHT] [--crop CROP] [--scale {stretch,fill,fit,crop}]
-                    [--interpolation {hard,smooth}] [--gamma GAMMA] [--loop] [--camera] [--debug]
+                    [--interpolation {hard,smooth}] [--gamma GAMMA] [--loop TIMES] [--camera] [--debug]
                     source
 
 positional arguments:
@@ -64,14 +64,14 @@ options:
   --interpolation {hard,smooth}
                         'smooth' uses pixel area relation when scaling the video (default), 'hard' uses nearest neighbour algorithm leading to crisper edges
   --gamma GAMMA         adjust for non-linearity of LEDs, defaults to 0.5
-  --loop
+  --loop TIMES          loop the video TIMES, specify -1 for infinite looping
   --camera              use a webcam instead of a video
   --debug               show the output in a window while streaming
 ```
 
 ## Configuration files
 
-All settings can also be parameters in a TOML configuration file. Parameters specified in the command line override parameters in the configuration file. If it exists, a file named `config.toml` is loaded automatically. 
+All settings can also be parameters in a TOML configuration file. Parameters specified in the command line override parameters in the configuration file. If it exists, a file named `config.toml` is loaded automatically.
 
 ```
 debug = true
