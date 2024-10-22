@@ -193,9 +193,11 @@ if __name__ == "__main__":
         )
     parser.add_argument(
         "--loop",
+        nargs="?",
         type=int,
+        const=-1,
         default=getDefault("loop"),
-        help="loop the n times (default: 0)",
+        help="loop the source n times (default: 0)",
     )
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument(
