@@ -68,7 +68,7 @@ class LoopableCamGear:
         colorspace=None,
         logging=False,
         time_delay=0,
-        loop=False,
+        loop=0,
         nosync=False,
         **options
     ):
@@ -95,6 +95,8 @@ class LoopableCamGear:
         self.ytv_metadata = {}
 
         self.__loop = loop
+        if self.__loop != 0:
+            logger.debug("Looping {} times.".format(self.__loop if self.__loop > 0 else "infinite"))
 
         # check if Stream-Mode is ON (True)
         if stream_mode:
@@ -319,16 +321,18 @@ class LoopableCamGear:
                 # no frames received, then safely exit
                 if self.__threaded_queue_mode:
                     if self.__queue.empty():
-                        if self.__loop:
+                        if self.__loop != 0:
                             self.stream.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                            if self.__loop > 0: self.__loop -= 1
                             continue
                         else:
                             break
                     else:
                         continue
                 else:
-                    if self.__loop:
+                    if self.__loop != 0:
                         self.stream.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        if self.__loop > 0: self.__loop -= 1
                         continue
                     else:
                         break
