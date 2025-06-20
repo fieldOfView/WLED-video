@@ -51,7 +51,7 @@ if __name__ == "__main__":
     DEFAULT_CONFIG_FILE = "config.toml"
     CONFIG_DEFAULTS = {
         "source": "" if "--camera" not in sys.argv else 0,
-        "loop": False,
+        "loop": 0,
         "camera": False,
         "display": False,
         "debug": False,
@@ -193,8 +193,11 @@ if __name__ == "__main__":
         )
     parser.add_argument(
         "--loop",
-        action="store_true",
+        nargs="?",
+        type=int,
+        const=-1,
         default=getDefault("loop"),
+        help="loop the source n times (default: 0)",
     )
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument(
