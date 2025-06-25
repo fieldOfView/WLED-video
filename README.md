@@ -3,7 +3,7 @@ A tool to stream video to WLED matrix displays
 
 Video can be streamed from local files, from a local webcam, or directly from a website [compatible with yt-dlp](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) such as youtube, vimeo, etc.
 
-WLED-video uses the [WARLS protocol over UDP](https://kno.wled.ge/interfaces/udp-realtime/) or the [tpm2 protocol over a serial connection](https://kno.wled.ge/interfaces/serial/) to the ESP running WLED. For the time being, the UDP connection seems to be much more stable and performant.
+WLED-video uses the [DDP protocol over UDP](https://kno.wled.ge/interfaces/ddp/) over UDP or the [tpm2 protocol over a serial connection](https://kno.wled.ge/interfaces/serial/) to the ESP running WLED. For the time being, the DDP protocol over UDP seems to be much more stable and performant.
 
 Sound is currently not handled.
 
